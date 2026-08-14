@@ -1,0 +1,22 @@
+import { Router } from "express";
+import { authRouter } from "./modules/auth/routes.js";
+import { usersRouter } from "./modules/users/routes.js";
+import { branchesRouter } from "./modules/branches/routes.js";
+import { departmentsRouter } from "./modules/departments/routes.js";
+import { vehiclesRouter } from "./modules/vehicles/routes.js";
+import { driversRouter } from "./modules/drivers/routes.js";
+import { dashboardRouter } from "./modules/dashboard/routes.js";
+import { auditRouter } from "./modules/audit/routes.js";
+import { requireAuth } from "./middleware/auth.js";
+
+export const apiRouter=Router();
+apiRouter.get("/health",(_req,res)=>res.json({status:"ok",service:"acriland-fleet-api"}));
+apiRouter.use("/auth",authRouter);
+apiRouter.use(requireAuth);
+apiRouter.use("/users",usersRouter);
+apiRouter.use("/branches",branchesRouter);
+apiRouter.use("/departments",departmentsRouter);
+apiRouter.use("/vehicles",vehiclesRouter);
+apiRouter.use("/drivers",driversRouter);
+apiRouter.use("/dashboard",dashboardRouter);
+apiRouter.use("/audit",auditRouter);

@@ -1,0 +1,2 @@
+import type { ReactNode } from "react";
+export function DataTable({headers,rows}:{headers:string[];rows:ReactNode[][]}){return <div className="table-wrap"><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={i}>{r.map((c,j)=><td key={j}>{c}</td>)}</tr>):<tr><td colSpan={headers.length}><div className="empty">No records yet.</div></td></tr>}</tbody></table></div>}

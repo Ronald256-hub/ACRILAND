@@ -35,14 +35,16 @@ usersRouter.post("/", requirePermission(PERMISSIONS.USER_CREATE), async (req, re
   const roles = await prisma.role.findMany({ where: { organizationId:req.auth!.organizationId, name:{in:input.roleNames} } });
   if (roles.length !== input.roleNames.length) return res.status(400).json({ error:"One or more roles are invalid for this organization." });
   if (roles.some((r) => r.name === "DRIVER")) return res.status(400).json({ error:"Driver portal accounts must be created from Driver Management." });
-  const user = await prisma.user.create({ data: { organizationId:req.auth!.organizationId,fullName:input.fullName,email:input.email.toLowerCase(),phone:input.phone,passwordHash:await hashPassword(input.temporaryPassword),mustChangePassword:true,branchId:input.branchId,departmentId:input.departmentId,roles:{create:roles.map((r)=>({roleId:r.id}))} } });
+  const user = await prisma.user.create({ data: { organizationId:req.auth!.organizationId,fullName:input.fullName,email:input.email.toLowerCase(),phone:input.phone??null,passwordHash:await hashPassword(input.temporaryPassword),mustChangePassword:true,branchId:input.branchId??null,departmentId:input.departmentId??null,roles:{create:roles.map((r)=>({roleId:r.id}))} } });
   await audit(req,{action:"CREATE",recordType:"USER",recordId:user.id,newValue:{fullName:user.fullName,email:user.email,roleNames:input.roleNames}});
   return res.status(201).json({ id:user.id, fullName:user.fullName, email:user.email, status:user.status });
 });
 
 usersRouter.patch("/:id/status", requirePermission(PERMISSIONS.USER_DISABLE), async (req,res)=>{
   const input=z.object({status:z.enum(["ACTIVE","DISABLED"]),reason:z.string().min(3).max(500)}).parse(req.body);
-  const current=await prisma.user.findFirst({where:{id:req.params.id,organizationId:req.auth!.organizationId,archivedAt:null}});
+  const userId=typeof req.params.id === "string" ? req.params.id : null;
+  if(!userId) return res.status(400).json({error:"Invalid user id."});
+  const current=await prisma.user.findFirst({where:{id:userId,organizationId:req.auth!.organizationId,archivedAt:null}});
   if(!current) return res.status(404).json({error:"User not found."});
   if(current.id===req.auth!.userId && input.status==="DISABLED") return res.status(400).json({error:"You cannot disable your own account."});
   if(req.auth!.roles.includes("FLEET_MANAGER")) {

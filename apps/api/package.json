@@ -10,7 +10,8 @@
     "test": "node --experimental-strip-types --test test/*.test.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev --name phase1_foundation",
-    "bootstrap": "tsx scripts/bootstrap-admin.ts"
+    "bootstrap": "tsx scripts/bootstrap-admin.ts",
+    "db:deploy": "prisma migrate deploy"
   },
   "dependencies": {
     "@prisma/client": "6.14.0",

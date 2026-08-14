@@ -19,7 +19,7 @@ authRouter.post("/login", loginLimiter, async (req, res) => {
   const input = loginSchema.parse(req.body);
   const org = await prisma.organization.findUnique({ where: { slug: input.organizationSlug.toLowerCase() } });
   const user = org ? await prisma.user.findUnique({ where: { organizationId_email: { organizationId: org.id, email: input.email.toLowerCase() } } }) : null;
-  const baseEvent = { organizationId: org?.id, userId: user?.id, email: input.email.toLowerCase(), ipAddress: req.ip, userAgent: req.get("user-agent") };
+  const baseEvent = { organizationId: org?.id ?? null, userId: user?.id ?? null, email: input.email.toLowerCase(), ipAddress: req.ip ?? null, userAgent: req.get("user-agent") ?? null };
   if (!org || !org.isActive || !user || user.archivedAt || user.status === "DISABLED") {
     await prisma.loginEvent.create({ data: { ...baseEvent, success: false, reason: "INVALID_CREDENTIALS" } });
     return res.status(401).json({ error: "Invalid organization, email or password." });
@@ -39,7 +39,7 @@ authRouter.post("/login", loginLimiter, async (req, res) => {
   const refresh = newOpaqueToken();
   const expiresAt = new Date(Date.now() + env.REFRESH_TOKEN_TTL_DAYS * 86_400_000);
   const session = await prisma.$transaction(async (tx) => {
-    const s = await tx.session.create({ data: { userId: user.id, refreshTokenHash: hashOpaqueToken(refresh), expiresAt, ipAddress: req.ip, userAgent: req.get("user-agent") } });
+    const s = await tx.session.create({ data: { userId: user.id, refreshTokenHash: hashOpaqueToken(refresh), expiresAt, ipAddress: req.ip ?? null, userAgent: req.get("user-agent") ?? null } });
     await tx.user.update({ where: { id: user.id }, data: { failedLoginCount: 0, lockedUntil: null, status: "ACTIVE", lastLoginAt: new Date() } });
     await tx.loginEvent.create({ data: { ...baseEvent, success: true, reason: "LOGIN_SUCCESS" } });
     return s;

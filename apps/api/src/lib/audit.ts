@@ -1,9 +1,10 @@
+import { Prisma } from "@prisma/client";
 import type { Request } from "express";
 import { prisma } from "./prisma.js";
 
-function jsonSafe(value: unknown): unknown {
-  if (value === undefined) return undefined;
-  return JSON.parse(JSON.stringify(value));
+function jsonSafe(value: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
+  if (value === undefined) return Prisma.JsonNull;
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
 export async function audit(req: Request, input: {
@@ -21,10 +22,10 @@ export async function audit(req: Request, input: {
     action: input.action,
     recordType: input.recordType,
     recordId: input.recordId,
-    oldValue: jsonSafe(input.oldValue) as never,
-    newValue: jsonSafe(input.newValue) as never,
-    reason: input.reason,
-    ipAddress: req.ip,
-    userAgent: req.get("user-agent")
+    oldValue: jsonSafe(input.oldValue),
+    newValue: jsonSafe(input.newValue),
+    reason: input.reason ?? null,
+    ipAddress: req.ip ?? null,
+    userAgent: req.get("user-agent") ?? null
   }});
 }

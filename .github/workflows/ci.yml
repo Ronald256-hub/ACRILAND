@@ -30,6 +30,8 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm run db:generate
+      - run: npm run db:deploy
       - run: npm run typecheck
       - run: npm test
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run build

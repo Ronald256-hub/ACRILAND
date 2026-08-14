@@ -1,3 +1,4 @@
+import { DriverStatus as PrismaDriverStatus, Prisma } from "@prisma/client";
 import { Router, type Request } from "express";
 import multer from "multer";
 import { z } from "zod";
@@ -36,6 +37,10 @@ const photoUpload = multer({
   storage: multer.memoryStorage(),
   limits: { files: 1, fileSize: Math.floor(env.MAX_PROFILE_PHOTO_MB * 1024 * 1024) }
 }).single("photo");
+
+function routeDriverId(value: string | string[] | undefined): string | null {
+  return typeof value === "string" ? value : null;
+}
 
 function hasPermission(req: Request, permission: string) {
   return req.auth!.permissions.has(permission);
@@ -113,11 +118,11 @@ driversRouter.post("/", requirePermission(PERMISSIONS.DRIVER_CREATE), async (req
       const user = await tx.user.create({
         data: {
           organizationId: req.auth!.organizationId,
-          branchId: input.branchId,
-          departmentId: input.departmentId,
+          branchId: input.branchId ?? null,
+          departmentId: input.departmentId ?? null,
           email: input.email!.toLowerCase(),
           fullName: input.fullName,
-          phone: input.phone,
+          phone: input.phone ?? null,
           passwordHash: await hashPassword(input.temporaryPassword!),
           mustChangePassword: true,
           roles: { create: { roleId: role.id } }
@@ -128,20 +133,20 @@ driversRouter.post("/", requirePermission(PERMISSIONS.DRIVER_CREATE), async (req
     return tx.driver.create({
       data: {
         organizationId: req.auth!.organizationId,
-        branchId: input.branchId,
-        departmentId: input.departmentId,
-        userId,
+        branchId: input.branchId ?? null,
+        departmentId: input.departmentId ?? null,
+        userId: userId ?? null,
         employeeNumber: input.employeeNumber,
         fullName: input.fullName,
-        phone: input.phone,
-        email: input.email?.toLowerCase(),
-        nationalIdRef: input.nationalIdRef,
+        phone: input.phone ?? null,
+        email: input.email?.toLowerCase() ?? null,
+        nationalIdRef: input.nationalIdRef ?? null,
         licenceNumber: input.licenceNumber,
         licenceClass: input.licenceClass,
-        licenceIssueDate: input.licenceIssueDate,
+        licenceIssueDate: input.licenceIssueDate ?? null,
         licenceExpiry: input.licenceExpiry,
-        emergencyContact: input.emergencyContact,
-        notes: input.notes,
+        emergencyContact: input.emergencyContact ?? null,
+        notes: input.notes ?? null,
         status
       }
     });
@@ -152,7 +157,7 @@ driversRouter.post("/", requirePermission(PERMISSIONS.DRIVER_CREATE), async (req
 
 driversRouter.get("/:id/photo", async (req, res) => {
   const driver = await prisma.driver.findFirst({
-    where: { id: req.params.id, organizationId: req.auth!.organizationId, archivedAt: null },
+    where: { id: routeDriverId(req.params.id) ?? "", organizationId: req.auth!.organizationId, archivedAt: null },
     select: { id: true, userId: true, photoUrl: true, updatedAt: true }
   });
   if (!driver || !canReadDriver(req, driver)) return res.status(404).json({ error: "Driver photo not found." });
@@ -173,7 +178,7 @@ driversRouter.post("/:id/photo", (req, res, next) => {
   photoUpload(req, res, (error) => error ? next(error) : next());
 }, async (req, res) => {
   const driver = await prisma.driver.findFirst({
-    where: { id: req.params.id, organizationId: req.auth!.organizationId, archivedAt: null },
+    where: { id: routeDriverId(req.params.id) ?? "", organizationId: req.auth!.organizationId, archivedAt: null },
     select: { id: true, userId: true, photoUrl: true, updatedAt: true }
   });
   if (!driver || !canManagePhoto(req, driver)) return res.status(404).json({ error: "Driver not found." });
@@ -206,7 +211,7 @@ driversRouter.post("/:id/photo", (req, res, next) => {
 
 driversRouter.delete("/:id/photo", async (req, res) => {
   const driver = await prisma.driver.findFirst({
-    where: { id: req.params.id, organizationId: req.auth!.organizationId, archivedAt: null },
+    where: { id: routeDriverId(req.params.id) ?? "", organizationId: req.auth!.organizationId, archivedAt: null },
     select: { id: true, userId: true, photoUrl: true }
   });
   if (!driver || !canManagePhoto(req, driver)) return res.status(404).json({ error: "Driver not found." });
@@ -228,17 +233,46 @@ driversRouter.patch("/:id", requirePermission(PERMISSIONS.DRIVER_EDIT), async (r
     status: z.enum(["ACTIVE", "OFF_DUTY", "LEAVE", "SUSPENDED", "LICENCE_EXPIRED", "INACTIVE"]).optional(),
     reason: z.string().max(500).optional()
   }).parse(req.body);
-  const current = await prisma.driver.findFirst({ where: { id: req.params.id, organizationId: req.auth!.organizationId, archivedAt: null } });
+  const driverId = routeDriverId(req.params.id);
+  if (!driverId) return res.status(400).json({ error: "Invalid driver id." });
+  const current = await prisma.driver.findFirst({ where: { id: driverId, organizationId: req.auth!.organizationId, archivedAt: null } });
   if (!current) return res.status(404).json({ error: "Driver not found." });
-  await assertTenantReferences(req.auth!.organizationId, input.branchId ?? current.branchId ?? undefined, input.departmentId ?? current.departmentId ?? undefined);
+
+  await assertTenantReferences(
+    req.auth!.organizationId,
+    input.branchId ?? current.branchId ?? undefined,
+    input.departmentId ?? current.departmentId ?? undefined
+  );
   const expiry = input.licenceExpiry ?? current.licenceExpiry;
-  const status = effectiveDriverStatus(input.status ?? current.status, expiry) as never;
-  const { reason, ...rest } = input;
-  const updated = await prisma.driver.update({ where: { id: current.id }, data: { ...rest, status } });
+  const status = effectiveDriverStatus(input.status ?? current.status, expiry) as PrismaDriverStatus;
+
+  const data: Prisma.DriverUncheckedUpdateInput = { status };
+  if (input.employeeNumber !== undefined) data.employeeNumber = input.employeeNumber;
+  if (input.fullName !== undefined) data.fullName = input.fullName;
+  if (input.phone !== undefined) data.phone = input.phone;
+  if (input.email !== undefined) data.email = input.email.toLowerCase();
+  if (input.nationalIdRef !== undefined) data.nationalIdRef = input.nationalIdRef;
+  if (input.licenceNumber !== undefined) data.licenceNumber = input.licenceNumber;
+  if (input.licenceClass !== undefined) data.licenceClass = input.licenceClass;
+  if (input.licenceIssueDate !== undefined) data.licenceIssueDate = input.licenceIssueDate;
+  if (input.licenceExpiry !== undefined) data.licenceExpiry = input.licenceExpiry;
+  if (input.emergencyContact !== undefined) data.emergencyContact = input.emergencyContact;
+  if (input.branchId !== undefined) data.branchId = input.branchId;
+  if (input.departmentId !== undefined) data.departmentId = input.departmentId;
+  if (input.notes !== undefined) data.notes = input.notes;
+
+  const updated = await prisma.driver.update({ where: { id: current.id }, data });
   if (current.userId && ["SUSPENDED", "INACTIVE", "LICENCE_EXPIRED"].includes(String(status))) {
     await prisma.user.update({ where: { id: current.userId }, data: { status: "DISABLED" } });
     await prisma.session.updateMany({ where: { userId: current.userId, revokedAt: null }, data: { revokedAt: new Date() } });
   }
-  await audit(req, { action: "UPDATE", recordType: "DRIVER", recordId: current.id, oldValue: current, newValue: updated, reason });
+  await audit(req, {
+    action: "UPDATE",
+    recordType: "DRIVER",
+    recordId: current.id,
+    oldValue: current,
+    newValue: updated,
+    ...(input.reason !== undefined ? { reason: input.reason } : {})
+  });
   return res.json(publicDriver(updated));
 });

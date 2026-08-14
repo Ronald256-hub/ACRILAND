@@ -41,3 +41,19 @@ There is intentionally **no public user registration endpoint**. Driver portal a
 ## Driver profile photos
 
 Drivers with portal accounts can upload or replace their own profile photo from **My Profile**. Fleet Managers and authorized administrators can also attach/update driver photos from Driver Management. Files are size-limited, validated by binary signature (JPEG/PNG/WebP), stored under server-generated private paths, and served only through authenticated API requests. Configure `FILE_STORAGE_ROOT` on a persistent volume; production object storage can replace the local adapter without changing the driver API.
+
+## Phase 2 fleet operations
+
+Phase 2 adds controlled vehicle movement and driver accountability:
+
+- one-active-driver / one-active-vehicle assignment enforcement
+- trip request, independent approval/rejection and controlled allocation
+- automatic temporary trip assignments when required
+- mandatory pre-trip inspection before departure
+- driver-controlled trip start and return with odometer validation
+- mandatory post-trip inspection before management closure
+- configurable digital inspection templates
+- critical inspection failures automatically ground vehicles
+- driver mobile home for My Vehicle, My Trips, Inspections and My Profile
+
+After applying Phase 2 migrations to an existing environment, run `npm run sync:defaults` once to synchronize new action permissions, default role grants and standard pre/post-trip inspection templates.

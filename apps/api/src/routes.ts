@@ -7,6 +7,9 @@ import { vehiclesRouter } from "./modules/vehicles/routes.js";
 import { driversRouter } from "./modules/drivers/routes.js";
 import { dashboardRouter } from "./modules/dashboard/routes.js";
 import { auditRouter } from "./modules/audit/routes.js";
+import { assignmentsRouter } from "./modules/assignments/routes.js";
+import { tripsRouter } from "./modules/trips/routes.js";
+import { inspectionsRouter } from "./modules/inspections/routes.js";
 import { requireAuth } from "./middleware/auth.js";
 
 export const apiRouter=Router();
@@ -20,3 +23,6 @@ apiRouter.use("/vehicles",vehiclesRouter);
 apiRouter.use("/drivers",driversRouter);
 apiRouter.use("/dashboard",dashboardRouter);
 apiRouter.use("/audit",auditRouter);
+apiRouter.use("/assignments", assignmentsRouter);
+apiRouter.use("/trips", tripsRouter);
+apiRouter.use("/inspections", inspectionsRouter);

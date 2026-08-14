@@ -26,7 +26,7 @@ export function DriverProfilePage() {
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const load = () => api<DriverProfile>("/drivers/me").then(setProfile).catch((e) => setError(e.message));
-  useEffect(load, []);
+  useEffect(()=>{ void load(); }, []);
 
   const upload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -53,7 +53,7 @@ export function DriverProfilePage() {
     {message && <div className="success-box">{message}</div>}
     <div className="panel driver-profile-card">
       <div className="driver-photo-editor">
-        <DriverAvatar name={profile.fullName} photoEndpoint={profile.photoEndpoint} size="large" />
+        <DriverAvatar name={profile.fullName} photoEndpoint={profile.photoEndpoint ?? null} size="large" />
         <div><h3>{profile.fullName}</h3><p>{profile.employeeNumber} · {profile.status.replaceAll("_", " ")}</p></div>
         <label className={`primary compact upload-button ${busy ? "disabled" : ""}`}>
           {busy ? "Uploading…" : profile.photoAvailable ? "Change photo" : "Add profile photo"}

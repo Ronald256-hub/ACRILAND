@@ -24,7 +24,7 @@ export function DriversPage() {
   const [error, setError] = useState("");
   const [photoBusy, setPhotoBusy] = useState<string | null>(null);
   const load = () => api<{ items: D[] }>("/drivers").then((r) => setItems(r.items)).catch((e) => setError(e.message));
-  useEffect(load, []);
+  useEffect(()=>{ void load(); }, []);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -74,7 +74,7 @@ export function DriversPage() {
     </form>}
     <div className="callout"><b>Driver access control:</b> drivers cannot self-register. Portal access is created here only by an authorized manager, and temporary passwords must be changed. Drivers can securely maintain their own profile photo after login.</div>
     <div className="panel"><DataTable headers={["Photo", "Employee", "Driver", "Licence", "Expiry", "Status", "Portal", "Photo action"]} rows={items.map((d) => [
-      <DriverAvatar name={d.fullName} photoEndpoint={d.photoEndpoint} size="small" />, d.employeeNumber, <b>{d.fullName}</b>, `${d.licenceNumber} · ${d.licenceClass}`,
+      <DriverAvatar name={d.fullName} photoEndpoint={d.photoEndpoint ?? null} size="small" />, d.employeeNumber, <b>{d.fullName}</b>, `${d.licenceNumber} · ${d.licenceClass}`,
       new Date(d.licenceExpiry).toLocaleDateString(), <span className="badge">{d.status.replaceAll("_", " ")}</span>, d.user?.status ?? "No account",
       me?.permissions.includes("driver.photo.manage") ? <label className={`mini-upload ${photoBusy === d.id ? "disabled" : ""}`}>{photoBusy === d.id ? "Uploading…" : "Update photo"}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => void replacePhoto(d, e)} disabled={photoBusy === d.id} /></label> : "—"
     ])} /></div>

@@ -1,0 +1,21 @@
+{
+  "name": "acriland-fleet-command",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @acriland/api & npm run dev -w @acriland/web",
+    "build": "npm run build -w @acriland/api && npm run build -w @acriland/web",
+    "typecheck": "npm run typecheck -w @acriland/api && npm run typecheck -w @acriland/web",
+    "test": "npm run test -w @acriland/api",
+    "db:generate": "npm run db:generate -w @acriland/api",
+    "db:migrate": "npm run db:migrate -w @acriland/api",
+    "bootstrap": "npm run bootstrap -w @acriland/api",
+    "db:deploy": "npm run db:deploy -w @acriland/api"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

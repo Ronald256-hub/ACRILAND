@@ -47,3 +47,43 @@ export function effectiveDriverStatus(status: string, licenceExpiry: Date, now =
 export function canDriverOperate(status: string, licenceExpiry: Date, now = new Date()): boolean {
   return effectiveDriverStatus(status, licenceExpiry, now) === "ACTIVE";
 }
+
+export function assertVehicleAssignable(status: VehicleStatus): void {
+  if (!["AVAILABLE", "PARKED", "SERVICE_DUE"].includes(status)) {
+    throw new BusinessRuleError(`Vehicle cannot be assigned while its status is ${status}.`, 409);
+  }
+}
+
+export function assertDriverAssignable(status: string, licenceExpiry: Date, now = new Date()): void {
+  if (!canDriverOperate(status, licenceExpiry, now)) {
+    throw new BusinessRuleError("Driver is not authorized to operate a vehicle. Check driver status and licence expiry.", 409);
+  }
+}
+
+export function assertDifferentApprover(requesterUserId: string, approverUserId: string): void {
+  if (requesterUserId === approverUserId) {
+    throw new BusinessRuleError("A user cannot approve their own trip request.", 403);
+  }
+}
+
+export function validateTripOdometers(startingKm: number, endingKm: number): number {
+  if (!Number.isInteger(startingKm) || !Number.isInteger(endingKm) || startingKm < 0 || endingKm < startingKm) {
+    throw new BusinessRuleError("Ending odometer cannot be lower than starting odometer.");
+  }
+  return endingKm - startingKm;
+}
+
+export type InspectionEvaluation = {
+  status: "PASSED" | "FAILED" | "COMPLETED_WITH_ATTENTION";
+  hasFailure: boolean;
+  criticalFailure: boolean;
+};
+
+export function evaluateInspectionResults(results: readonly { result: string; isCritical: boolean }[]): InspectionEvaluation {
+  if (results.length === 0) throw new BusinessRuleError("An inspection must contain at least one result.");
+  const failed = results.some((item) => item.result === "FAIL");
+  const criticalFailure = results.some((item) => item.result === "FAIL" && item.isCritical);
+  if (failed) return { status: "FAILED", hasFailure: true, criticalFailure };
+  const attention = results.some((item) => item.result === "ATTENTION_REQUIRED");
+  return { status: attention ? "COMPLETED_WITH_ATTENTION" : "PASSED", hasFailure: false, criticalFailure: false };
+}

@@ -9,9 +9,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --experimental-strip-types --test test/*.test.ts",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev --name phase1_foundation",
+    "db:migrate": "prisma migrate dev",
     "bootstrap": "tsx scripts/bootstrap-admin.ts",
-    "db:deploy": "prisma migrate deploy"
+    "db:deploy": "prisma migrate deploy",
+    "sync:defaults": "tsx scripts/sync-platform-defaults.ts"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",

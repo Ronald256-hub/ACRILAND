@@ -8,3 +8,4 @@
 6. Never delete fleet financial/maintenance/audit history to make a migration succeed.
 7. Roll application changes in a backward-compatible sequence.
 8. Document rollback or forward-fix procedure for every risky migration.
+9. After migrations that add permissions or system templates, run `npm run sync:defaults` and verify role grants before reopening the application to users.

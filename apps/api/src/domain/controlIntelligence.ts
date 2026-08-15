@@ -1,5 +1,3 @@
-import { BusinessRuleError } from "./rules.js";
-
 export type GeoPoint = { latitude: number; longitude: number };
 export type GeofenceShapeInput =
   | { shape: "CIRCLE"; centerLatitude: number; centerLongitude: number; radiusMetres: number; polygon?: never }
@@ -18,7 +16,7 @@ export function haversineMetres(a: GeoPoint, b: GeoPoint): number {
 }
 
 export function pointInPolygon(point: GeoPoint, polygon: readonly GeoPoint[]): boolean {
-  if (polygon.length < 3) throw new BusinessRuleError("A polygon geofence requires at least three points.");
+  if (polygon.length < 3) throw new RangeError("A polygon geofence requires at least three points.");
   let inside = false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
     const xi = polygon[i]!.longitude, yi = polygon[i]!.latitude;
@@ -32,14 +30,14 @@ export function pointInPolygon(point: GeoPoint, polygon: readonly GeoPoint[]): b
 
 export function pointInGeofence(point: GeoPoint, geofence: GeofenceShapeInput): boolean {
   if (geofence.shape === "CIRCLE") {
-    if (geofence.radiusMetres <= 0) throw new BusinessRuleError("Geofence radius must be greater than zero.");
+    if (geofence.radiusMetres <= 0) throw new RangeError("Geofence radius must be greater than zero.");
     return haversineMetres(point, { latitude: geofence.centerLatitude, longitude: geofence.centerLongitude }) <= geofence.radiusMetres;
   }
   return pointInPolygon(point, geofence.polygon);
 }
 
 export function validateDispatchWindow(plannedDeparture: Date, plannedReturn: Date): void {
-  if (plannedReturn.getTime() < plannedDeparture.getTime()) throw new BusinessRuleError("Planned return cannot be before planned departure.");
+  if (plannedReturn.getTime() < plannedDeparture.getTime()) throw new RangeError("Planned return cannot be before planned departure.");
 }
 
 export function overlapsWindow(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {

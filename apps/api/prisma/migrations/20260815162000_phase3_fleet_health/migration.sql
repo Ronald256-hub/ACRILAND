@@ -121,3 +121,37 @@ CREATE TABLE "ComplianceDocument" (
 CREATE UNIQUE INDEX "ComplianceDocument_org_vehicle_type_reference_key" ON "ComplianceDocument"("organizationId","vehicleId","type","referenceNumber");
 CREATE INDEX "ComplianceDocument_organizationId_expiryDate_idx" ON "ComplianceDocument"("organizationId","expiryDate");
 CREATE INDEX "ComplianceDocument_vehicleId_type_idx" ON "ComplianceDocument"("vehicleId","type");
+
+-- Seed Phase 3 permissions for existing organizations. syncPlatformDefaults remains the
+-- canonical reconciliation path, but deployment itself must not leave new routes inaccessible.
+INSERT INTO "Permission" ("id","key","description") VALUES
+  ('31000000-0000-4000-8000-000000000001','maintenance.view','maintenance view'),
+  ('31000000-0000-4000-8000-000000000002','maintenance.open','maintenance open'),
+  ('31000000-0000-4000-8000-000000000003','maintenance.approve','maintenance approve'),
+  ('31000000-0000-4000-8000-000000000004','maintenance.release','maintenance release'),
+  ('31000000-0000-4000-8000-000000000005','fuel.view','fuel view'),
+  ('31000000-0000-4000-8000-000000000006','fuel.create','fuel create'),
+  ('31000000-0000-4000-8000-000000000007','fuel.approve','fuel approve'),
+  ('31000000-0000-4000-8000-000000000008','compliance.view','compliance view'),
+  ('31000000-0000-4000-8000-000000000009','compliance.manage','compliance manage'),
+  ('31000000-0000-4000-8000-000000000010','report.view','report view'),
+  ('31000000-0000-4000-8000-000000000011','report.export','report export')
+ON CONFLICT ("key") DO UPDATE SET "description" = EXCLUDED."description";
+
+WITH role_permission("roleName","permissionKey") AS (VALUES
+  ('SUPER_ADMINISTRATOR','maintenance.view'),('SUPER_ADMINISTRATOR','maintenance.open'),('SUPER_ADMINISTRATOR','maintenance.approve'),('SUPER_ADMINISTRATOR','maintenance.release'),('SUPER_ADMINISTRATOR','fuel.view'),('SUPER_ADMINISTRATOR','fuel.create'),('SUPER_ADMINISTRATOR','fuel.approve'),('SUPER_ADMINISTRATOR','compliance.view'),('SUPER_ADMINISTRATOR','compliance.manage'),('SUPER_ADMINISTRATOR','report.view'),('SUPER_ADMINISTRATOR','report.export'),
+  ('ORGANIZATION_ADMINISTRATOR','maintenance.view'),('ORGANIZATION_ADMINISTRATOR','maintenance.open'),('ORGANIZATION_ADMINISTRATOR','maintenance.approve'),('ORGANIZATION_ADMINISTRATOR','maintenance.release'),('ORGANIZATION_ADMINISTRATOR','fuel.view'),('ORGANIZATION_ADMINISTRATOR','fuel.create'),('ORGANIZATION_ADMINISTRATOR','fuel.approve'),('ORGANIZATION_ADMINISTRATOR','compliance.view'),('ORGANIZATION_ADMINISTRATOR','compliance.manage'),('ORGANIZATION_ADMINISTRATOR','report.view'),('ORGANIZATION_ADMINISTRATOR','report.export'),
+  ('FLEET_MANAGER','maintenance.view'),('FLEET_MANAGER','maintenance.open'),('FLEET_MANAGER','maintenance.approve'),('FLEET_MANAGER','maintenance.release'),('FLEET_MANAGER','fuel.view'),('FLEET_MANAGER','fuel.create'),('FLEET_MANAGER','fuel.approve'),('FLEET_MANAGER','compliance.view'),('FLEET_MANAGER','compliance.manage'),('FLEET_MANAGER','report.view'),('FLEET_MANAGER','report.export'),
+  ('WORKSHOP_MANAGER','maintenance.view'),('WORKSHOP_MANAGER','maintenance.open'),('WORKSHOP_MANAGER','maintenance.approve'),('WORKSHOP_MANAGER','maintenance.release'),('WORKSHOP_MANAGER','compliance.view'),('WORKSHOP_MANAGER','report.view'),('WORKSHOP_MANAGER','report.export'),
+  ('WORKSHOP_SUPERVISOR','maintenance.view'),('WORKSHOP_SUPERVISOR','maintenance.open'),('WORKSHOP_SUPERVISOR','compliance.view'),('WORKSHOP_SUPERVISOR','report.view'),('WORKSHOP_SUPERVISOR','report.export'),
+  ('TECHNICIAN','maintenance.view'),('TECHNICIAN','maintenance.open'),
+  ('DRIVER','fuel.create'),
+  ('FINANCE_OFFICER','fuel.view'),('FINANCE_OFFICER','fuel.approve'),('FINANCE_OFFICER','report.view'),('FINANCE_OFFICER','report.export'),
+  ('MANAGEMENT_DIRECTOR','maintenance.view'),('MANAGEMENT_DIRECTOR','fuel.view'),('MANAGEMENT_DIRECTOR','compliance.view'),('MANAGEMENT_DIRECTOR','report.view'),('MANAGEMENT_DIRECTOR','report.export')
+)
+INSERT INTO "RolePermission" ("roleId","permissionId")
+SELECT r."id", p."id"
+FROM role_permission rp
+JOIN "Role" r ON r."name" = rp."roleName"
+JOIN "Permission" p ON p."key" = rp."permissionKey"
+ON CONFLICT ("roleId","permissionId") DO NOTHING;

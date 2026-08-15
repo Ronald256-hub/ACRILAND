@@ -114,15 +114,52 @@ enum InspectionStatus {
   COMPLETED_WITH_ATTENTION
 }
 
+enum MaintenancePriority {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
+}
+
+enum MaintenanceStatus {
+  OPEN
+  DIAGNOSIS
+  AWAITING_APPROVAL
+  APPROVED
+  IN_PROGRESS
+  QC
+  READY_FOR_RELEASE
+  CLOSED
+  CANCELLED
+}
+
+enum FuelRequestStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  ISSUED
+  CANCELLED
+}
+
+enum ComplianceType {
+  INSURANCE
+  ROAD_LICENCE
+  FITNESS
+  THIRD_PARTY
+  TAX
+  WARRANTY
+  OTHER
+}
+
 model Organization {
-  id                  String               @id @default(uuid()) @db.Uuid
+  id                  String                 @id @default(uuid()) @db.Uuid
   name                String
-  slug                String               @unique
-  currency            String               @default("UGX")
-  timezone            String               @default("Africa/Kampala")
-  isActive            Boolean              @default(true)
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
+  slug                String                 @unique
+  currency            String                 @default("UGX")
+  timezone            String                 @default("Africa/Kampala")
+  isActive            Boolean                @default(true)
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
   branches            Branch[]
   departments         Department[]
   users               User[]
@@ -135,6 +172,9 @@ model Organization {
   trips               Trip[]
   inspectionTemplates InspectionTemplate[]
   inspections         VehicleInspection[]
+  maintenanceOrders   MaintenanceWorkOrder[]
+  fuelTransactions    FuelTransaction[]
+  complianceDocuments ComplianceDocument[]
 }
 
 model Branch {
@@ -178,36 +218,42 @@ model Department {
 }
 
 model User {
-  id                         String               @id @default(uuid()) @db.Uuid
-  organizationId             String               @db.Uuid
-  branchId                   String?              @db.Uuid
-  departmentId               String?              @db.Uuid
+  id                         String                 @id @default(uuid()) @db.Uuid
+  organizationId             String                 @db.Uuid
+  branchId                   String?                @db.Uuid
+  departmentId               String?                @db.Uuid
   email                      String
   fullName                   String
   phone                      String?
   passwordHash               String
-  status                     UserStatus           @default(ACTIVE)
-  mustChangePassword         Boolean              @default(true)
-  failedLoginCount           Int                  @default(0)
+  status                     UserStatus             @default(ACTIVE)
+  mustChangePassword         Boolean                @default(true)
+  failedLoginCount           Int                    @default(0)
   lockedUntil                DateTime?
   lastLoginAt                DateTime?
   archivedAt                 DateTime?
-  createdAt                  DateTime             @default(now())
-  updatedAt                  DateTime             @updatedAt
-  organization               Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  branch                     Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  department                 Department?          @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  createdAt                  DateTime               @default(now())
+  updatedAt                  DateTime               @updatedAt
+  organization               Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  branch                     Branch?                @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  department                 Department?            @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   roles                      UserRole[]
   sessions                   Session[]
   passwordResetTokens        PasswordResetToken[]
   driver                     Driver?
-  assignmentsCreated         VehicleAssignment[]  @relation("AssignmentCreatedBy")
-  assignmentsEnded           VehicleAssignment[]  @relation("AssignmentEndedBy")
-  tripsRequested             Trip[]               @relation("TripRequester")
-  tripsApproved              Trip[]               @relation("TripApprover")
-  tripApprovals              TripApproval[]       @relation("TripApprovalApprover")
-  inspectionTemplatesCreated InspectionTemplate[] @relation("InspectionTemplateCreator")
-  inspectionsPerformed       VehicleInspection[]  @relation("InspectionPerformer")
+  assignmentsCreated         VehicleAssignment[]    @relation("AssignmentCreatedBy")
+  assignmentsEnded           VehicleAssignment[]    @relation("AssignmentEndedBy")
+  tripsRequested             Trip[]                 @relation("TripRequester")
+  tripsApproved              Trip[]                 @relation("TripApprover")
+  tripApprovals              TripApproval[]         @relation("TripApprovalApprover")
+  inspectionTemplatesCreated InspectionTemplate[]   @relation("InspectionTemplateCreator")
+  inspectionsPerformed       VehicleInspection[]    @relation("InspectionPerformer")
+  maintenanceOpened          MaintenanceWorkOrder[] @relation("MaintenanceOpenedBy")
+  maintenanceApproved        MaintenanceWorkOrder[] @relation("MaintenanceApprovedBy")
+  maintenanceReleased        MaintenanceWorkOrder[] @relation("MaintenanceReleasedBy")
+  fuelRequested              FuelTransaction[]      @relation("FuelRequestedBy")
+  fuelApproved               FuelTransaction[]      @relation("FuelApprovedBy")
+  complianceCreated          ComplianceDocument[]   @relation("ComplianceCreatedBy")
 
   @@unique([organizationId, email])
   @@index([organizationId, status])
@@ -296,11 +342,11 @@ model LoginEvent {
 }
 
 model Driver {
-  id               String       @id @default(uuid()) @db.Uuid
-  organizationId   String       @db.Uuid
-  branchId         String?      @db.Uuid
-  departmentId     String?      @db.Uuid
-  userId           String?      @unique @db.Uuid
+  id               String            @id @default(uuid()) @db.Uuid
+  organizationId   String            @db.Uuid
+  branchId         String?           @db.Uuid
+  departmentId     String?           @db.Uuid
+  userId           String?           @unique @db.Uuid
   employeeNumber   String
   fullName         String
   phone            String?
@@ -311,20 +357,21 @@ model Driver {
   licenceIssueDate DateTime?
   licenceExpiry    DateTime
   emergencyContact String?
-  status           DriverStatus @default(ACTIVE)
+  status           DriverStatus      @default(ACTIVE)
   photoUrl         String?
   notes            String?
   archivedAt       DateTime?
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  branch           Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  department       Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  user             User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  branch           Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  department       Department?       @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  user             User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
   licences         DriverLicence[]
   assignments      VehicleAssignment[]
   trips            Trip[]
   inspections      VehicleInspection[]
+  fuelTransactions FuelTransaction[]
 
   @@unique([organizationId, employeeNumber])
   @@unique([organizationId, licenceNumber])
@@ -347,51 +394,58 @@ model DriverLicence {
 }
 
 model Vehicle {
-  id                 String           @id @default(uuid()) @db.Uuid
-  organizationId     String           @db.Uuid
-  branchId           String?          @db.Uuid
-  departmentId       String?          @db.Uuid
-  registrationNumber String
-  fleetNumber        String?
-  vin                String
-  engineNumber       String?
-  make               String
-  model              String
-  variant            String?
-  category           String
-  bodyType           String?
-  manufacturingYear  Int
-  registrationYear   Int?
-  fuelType           FuelType
-  transmission       TransmissionType?
-  engineCapacityCc   Int?
-  tankCapacityLitres Decimal?         @db.Decimal(10, 2)
-  grossWeightKg      Decimal?         @db.Decimal(12, 2)
-  colour             String?
-  costCentre         String?
-  acquisitionMethod  String?
-  ownershipType      String?
-  purchaseDate       DateTime?
-  purchasePrice      Decimal?         @db.Decimal(18, 2)
-  supplier           String?
-  warrantyStart      DateTime?
-  warrantyEnd        DateTime?
-  warrantyMileageKm  Int?
-  initialOdometerKm  Int              @default(0)
-  currentOdometerKm  Int              @default(0)
-  currentLocation    String?
-  imageUrl           String?
-  notes              String?
-  status             VehicleStatus    @default(AVAILABLE)
-  archivedAt         DateTime?
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
-  organization       Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  branch             Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  department         Department?      @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  assignments        VehicleAssignment[]
-  trips              Trip[]
-  inspections        VehicleInspection[]
+  id                  String                 @id @default(uuid()) @db.Uuid
+  organizationId      String                 @db.Uuid
+  branchId            String?                @db.Uuid
+  departmentId        String?                @db.Uuid
+  registrationNumber  String
+  fleetNumber         String?
+  vin                 String
+  engineNumber        String?
+  make                String
+  model               String
+  variant             String?
+  category            String
+  bodyType            String?
+  manufacturingYear   Int
+  registrationYear    Int?
+  fuelType            FuelType
+  transmission        TransmissionType?
+  engineCapacityCc    Int?
+  tankCapacityLitres  Decimal?               @db.Decimal(10, 2)
+  grossWeightKg       Decimal?               @db.Decimal(12, 2)
+  colour              String?
+  costCentre          String?
+  acquisitionMethod   String?
+  ownershipType       String?
+  purchaseDate        DateTime?
+  purchasePrice       Decimal?               @db.Decimal(18, 2)
+  supplier            String?
+  warrantyStart       DateTime?
+  warrantyEnd         DateTime?
+  warrantyMileageKm   Int?
+  initialOdometerKm   Int                     @default(0)
+  currentOdometerKm   Int                     @default(0)
+  currentLocation     String?
+  imageUrl            String?
+  notes               String?
+  status              VehicleStatus           @default(AVAILABLE)
+  lastServiceAt       DateTime?
+  nextServiceDueAt    DateTime?
+  nextServiceDueKm    Int?
+  serviceIntervalKm   Int?
+  archivedAt          DateTime?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  organization        Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  branch              Branch?                 @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  department          Department?             @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  assignments         VehicleAssignment[]
+  trips               Trip[]
+  inspections         VehicleInspection[]
+  maintenanceOrders   MaintenanceWorkOrder[]
+  fuelTransactions    FuelTransaction[]
+  complianceDocuments ComplianceDocument[]
 
   @@unique([organizationId, registrationNumber])
   @@unique([organizationId, vin])
@@ -467,6 +521,7 @@ model Trip {
   department          Department?        @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   approvals           TripApproval[]
   inspections         VehicleInspection[]
+  fuelTransactions    FuelTransaction[]
 
   @@unique([organizationId, tripNumber])
   @@index([organizationId, status, requestedDeparture])
@@ -565,6 +620,110 @@ model InspectionResult {
 
   @@unique([inspectionId, templateItemId])
   @@index([inspectionId, result])
+}
+
+model MaintenanceWorkOrder {
+  id               String              @id @default(uuid()) @db.Uuid
+  organizationId   String              @db.Uuid
+  workOrderNumber  String
+  vehicleId        String              @db.Uuid
+  openedByUserId   String              @db.Uuid
+  priority         MaintenancePriority @default(NORMAL)
+  status           MaintenanceStatus   @default(OPEN)
+  category         String
+  title            String
+  description      String
+  odometerKm       Int
+  diagnosis        String?
+  vendor           String?
+  estimatedCost    Decimal?            @db.Decimal(18, 2)
+  labourCost       Decimal?            @db.Decimal(18, 2)
+  partsCost        Decimal?            @db.Decimal(18, 2)
+  totalCost        Decimal?            @db.Decimal(18, 2)
+  approvedByUserId String?             @db.Uuid
+  approvedAt       DateTime?
+  workPerformed    String?
+  qcNotes          String?
+  releasedByUserId String?             @db.Uuid
+  releasedAt       DateTime?
+  openedAt         DateTime            @default(now())
+  completedAt      DateTime?
+  downtimeStart    DateTime?
+  downtimeEnd      DateTime?
+  nextServiceDueAt DateTime?
+  nextServiceDueKm Int?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  organization     Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  vehicle          Vehicle             @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  openedBy         User                @relation("MaintenanceOpenedBy", fields: [openedByUserId], references: [id], onDelete: Restrict)
+  approvedBy       User?               @relation("MaintenanceApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  releasedBy       User?               @relation("MaintenanceReleasedBy", fields: [releasedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, workOrderNumber])
+  @@index([organizationId, status, priority])
+  @@index([vehicleId, openedAt])
+}
+
+model FuelTransaction {
+  id                String            @id @default(uuid()) @db.Uuid
+  organizationId    String            @db.Uuid
+  requestNumber     String
+  vehicleId         String            @db.Uuid
+  driverId          String?           @db.Uuid
+  tripId            String?           @db.Uuid
+  requestedByUserId String            @db.Uuid
+  approvedByUserId  String?           @db.Uuid
+  status            FuelRequestStatus @default(REQUESTED)
+  fuelType          FuelType
+  requestedLitres   Decimal           @db.Decimal(10, 2)
+  issuedLitres      Decimal?          @db.Decimal(10, 2)
+  unitPrice         Decimal?          @db.Decimal(18, 2)
+  totalCost         Decimal?          @db.Decimal(18, 2)
+  station           String?
+  odometerKm        Int
+  receiptNumber     String?
+  notes             String?
+  rejectionReason   String?
+  requestedAt       DateTime          @default(now())
+  approvedAt        DateTime?
+  issuedAt          DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  vehicle           Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  driver            Driver?           @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  trip              Trip?             @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  requestedBy       User              @relation("FuelRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  approvedBy        User?             @relation("FuelApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, requestNumber])
+  @@index([organizationId, status, requestedAt])
+  @@index([vehicleId, issuedAt])
+  @@index([driverId, requestedAt])
+}
+
+model ComplianceDocument {
+  id                String         @id @default(uuid()) @db.Uuid
+  organizationId    String         @db.Uuid
+  vehicleId         String         @db.Uuid
+  type              ComplianceType
+  referenceNumber   String
+  provider          String?
+  issueDate         DateTime?
+  expiryDate        DateTime
+  notes             String?
+  documentUrl       String?
+  createdByUserId   String         @db.Uuid
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  organization      Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  vehicle           Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  createdBy         User           @relation("ComplianceCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, vehicleId, type, referenceNumber])
+  @@index([organizationId, expiryDate])
+  @@index([vehicleId, type])
 }
 
 model AuditLog {

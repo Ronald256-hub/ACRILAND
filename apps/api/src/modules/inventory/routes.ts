@@ -5,7 +5,7 @@ import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { audit } from "../../lib/audit.js";
 import { PERMISSIONS } from "../../domain/permissions.js";
-import { assertDifferentApprover } from "../../domain/rules.js";
+import { assertDifferentApprover, BusinessRuleError } from "../../domain/rules.js";
 import { requirePermission } from "../../middleware/authorize.js";
 
 export const inventoryRouter = Router();
@@ -32,12 +32,25 @@ inventoryRouter.patch("/items/:id",requirePermission(PERMISSIONS.INVENTORY_MANAG
 
 inventoryRouter.post("/items/:id/movements",requirePermission(PERMISSIONS.INVENTORY_MANAGE),async(req,res)=>{
   const id=routeId(req.params.id);if(!id)return res.status(400).json({error:"Invalid inventory item id."});const input=z.object({type:z.enum(["RECEIPT","ISSUE","RETURN"]),quantity:z.number().positive(),unitCost:z.number().min(0).optional(),reference:z.string().max(150).optional(),workOrderId:z.string().uuid().optional(),notes:z.string().max(1000).optional()}).parse(req.body);const item=await prisma.inventoryItem.findFirst({where:{id,organizationId:req.auth!.organizationId,isActive:true}});if(!item)return res.status(404).json({error:"Inventory item not found."});if(input.workOrderId){const order=await prisma.maintenanceWorkOrder.findFirst({where:{id:input.workOrderId,organizationId:req.auth!.organizationId},select:{id:true}});if(!order)return res.status(400).json({error:"Work order does not belong to this organization."});}
-  const current=n(item.quantityOnHand);const delta=input.type==="ISSUE"?-input.quantity:input.quantity;const next=current+delta;if(next<0)return res.status(409).json({error:"Stock issue exceeds quantity on hand."});
-  const result=await prisma.$transaction(async tx=>{const movement=await tx.stockMovement.create({data:{organizationId:req.auth!.organizationId,itemId:item.id,type:input.type,quantity:input.quantity,unitCost:input.unitCost??item.unitCost,reference:input.reference??null,workOrderId:input.workOrderId??null,performedByUserId:req.auth!.userId,notes:input.notes??null}});const updated=await tx.inventoryItem.update({where:{id:item.id},data:{quantityOnHand:next,...(input.type==="RECEIPT"&&input.unitCost!==undefined?{unitCost:input.unitCost}:{})}});return{movement,item:updated};});await audit(req,{action:input.type,recordType:"STOCK_MOVEMENT",recordId:result.movement.id,newValue:{itemId:item.id,quantity:input.quantity,quantityOnHand:result.item.quantityOnHand}});return res.status(201).json(result);
+  if(input.type==="ISSUE"&&n(item.quantityOnHand)<input.quantity)return res.status(409).json({error:"Stock issue exceeds quantity on hand."});
+  const result=await prisma.$transaction(async tx=>{
+    let updated;
+    if(input.type==="ISSUE"){
+      const changed=await tx.inventoryItem.updateMany({where:{id:item.id,organizationId:req.auth!.organizationId,isActive:true,quantityOnHand:{gte:input.quantity}},data:{quantityOnHand:{decrement:input.quantity}}});
+      if(changed.count!==1)throw new BusinessRuleError("Stock issue exceeds quantity on hand.",409);
+      updated=await tx.inventoryItem.findUniqueOrThrow({where:{id:item.id}});
+    }else{
+      updated=await tx.inventoryItem.update({where:{id:item.id},data:{quantityOnHand:{increment:input.quantity},...(input.type==="RECEIPT"&&input.unitCost!==undefined?{unitCost:input.unitCost}:{})}});
+    }
+    const movement=await tx.stockMovement.create({data:{organizationId:req.auth!.organizationId,itemId:item.id,type:input.type,quantity:input.quantity,unitCost:input.unitCost??item.unitCost,reference:input.reference??null,workOrderId:input.workOrderId??null,performedByUserId:req.auth!.userId,notes:input.notes??null}});
+    if(n(updated.quantityOnHand)>n(updated.reorderLevel))await tx.operationalAlert.updateMany({where:{organizationId:req.auth!.organizationId,sourceType:"INVENTORY_ITEM",sourceId:item.id,category:"LOW_STOCK",status:{not:"CLOSED"}},data:{status:"CLOSED",closedAt:new Date()}});
+    return{movement,item:updated};
+  });
+  await audit(req,{action:input.type,recordType:"STOCK_MOVEMENT",recordId:result.movement.id,newValue:{itemId:item.id,quantity:input.quantity,quantityOnHand:result.item.quantityOnHand}});return res.status(201).json(result);
 });
 
 inventoryRouter.get("/procurement",requirePermission(PERMISSIONS.PROCUREMENT_VIEW),async(req,res)=>{
-  const items=await prisma.procurementRequest.findMany({where:{organizationId:req.auth!.organizationId},orderBy:{createdAt:"desc"},take:300});const itemIds=[...new Set(items.map(i=>i.itemId))];const stock=itemIds.length?await prisma.inventoryItem.findMany({where:{id:{in:itemIds}},select:{id:true,sku:true,name:true,unit:true,quantityOnHand:true,reorderLevel:true}}):[];const map=new Map(stock.map(i=>[i.id,i]));return res.json({items:items.map(row=>({...row,item:map.get(row.itemId)??null}))});
+  const items=await prisma.procurementRequest.findMany({where:{organizationId:req.auth!.organizationId},orderBy:{createdAt:"desc"},take:300});const itemIds=[...new Set(items.map(i=>i.itemId))];const stock=itemIds.length?await prisma.inventoryItem.findMany({where:{id:{in:itemIds}},select:{id:true,sku:true,name:true,unit:true,quantityOnHand:true,reorderLevel:true,unitCost:true,preferredSupplier:true}}):[];const map=new Map(stock.map(i=>[i.id,i]));return res.json({items:items.map(row=>({...row,item:map.get(row.itemId)??null}))});
 });
 
 inventoryRouter.post("/procurement",requirePermission(PERMISSIONS.PROCUREMENT_CREATE),async(req,res)=>{
@@ -53,5 +66,7 @@ inventoryRouter.post("/procurement/:id/order",requirePermission(PERMISSIONS.PROC
 });
 
 inventoryRouter.post("/procurement/:id/receive",requirePermission(PERMISSIONS.INVENTORY_MANAGE),async(req,res)=>{
-  const id=routeId(req.params.id);if(!id)return res.status(400).json({error:"Invalid procurement request id."});const input=z.object({reference:z.string().max(150).optional(),notes:z.string().max(1000).optional()}).parse(req.body);const row=await prisma.procurementRequest.findFirst({where:{id,organizationId:req.auth!.organizationId}});if(!row)return res.status(404).json({error:"Procurement request not found."});if(row.status!=="ORDERED")return res.status(409).json({error:"Only an ordered procurement request can be received."});const item=await prisma.inventoryItem.findFirst({where:{id:row.itemId,organizationId:req.auth!.organizationId,isActive:true}});if(!item)return res.status(404).json({error:"Inventory item not found."});const qty=n(row.requestedQuantity);const result=await prisma.$transaction(async tx=>{const updatedItem=await tx.inventoryItem.update({where:{id:item.id},data:{quantityOnHand:n(item.quantityOnHand)+qty,...(row.unitPrice!==null?{unitCost:row.unitPrice}:{})}});const movement=await tx.stockMovement.create({data:{organizationId:req.auth!.organizationId,itemId:item.id,type:"RECEIPT",quantity:qty,unitCost:row.unitPrice,reference:input.reference??row.requestNumber,performedByUserId:req.auth!.userId,notes:input.notes??null}});const procurement=await tx.procurementRequest.update({where:{id:row.id},data:{status:"RECEIVED",receivedAt:new Date()}});return{item:updatedItem,movement,procurement};});await audit(req,{action:"RECEIVE",recordType:"PROCUREMENT_REQUEST",recordId:row.id,oldValue:{status:row.status},newValue:{status:result.procurement.status,quantityOnHand:result.item.quantityOnHand}});return res.json(result);
+  const id=routeId(req.params.id);if(!id)return res.status(400).json({error:"Invalid procurement request id."});const input=z.object({reference:z.string().max(150).optional(),notes:z.string().max(1000).optional()}).parse(req.body);const row=await prisma.procurementRequest.findFirst({where:{id,organizationId:req.auth!.organizationId}});if(!row)return res.status(404).json({error:"Procurement request not found."});if(row.status!=="ORDERED")return res.status(409).json({error:"Only an ordered procurement request can be received."});const item=await prisma.inventoryItem.findFirst({where:{id:row.itemId,organizationId:req.auth!.organizationId,isActive:true}});if(!item)return res.status(404).json({error:"Inventory item not found."});const qty=n(row.requestedQuantity);
+  const result=await prisma.$transaction(async tx=>{const updatedItem=await tx.inventoryItem.update({where:{id:item.id},data:{quantityOnHand:{increment:qty},...(row.unitPrice!==null?{unitCost:row.unitPrice}:{})}});const movement=await tx.stockMovement.create({data:{organizationId:req.auth!.organizationId,itemId:item.id,type:"RECEIPT",quantity:qty,unitCost:row.unitPrice,reference:input.reference??row.requestNumber,performedByUserId:req.auth!.userId,notes:input.notes??null}});const procurement=await tx.procurementRequest.update({where:{id:row.id},data:{status:"RECEIVED",receivedAt:new Date()}});if(n(updatedItem.quantityOnHand)>n(updatedItem.reorderLevel))await tx.operationalAlert.updateMany({where:{organizationId:req.auth!.organizationId,sourceType:"INVENTORY_ITEM",sourceId:item.id,category:"LOW_STOCK",status:{not:"CLOSED"}},data:{status:"CLOSED",closedAt:new Date()}});return{item:updatedItem,movement,procurement};});
+  await audit(req,{action:"RECEIVE",recordType:"PROCUREMENT_REQUEST",recordId:row.id,oldValue:{status:row.status},newValue:{status:result.procurement.status,quantityOnHand:result.item.quantityOnHand}});return res.json(result);
 });

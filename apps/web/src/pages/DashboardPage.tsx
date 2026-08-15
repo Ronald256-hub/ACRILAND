@@ -31,28 +31,33 @@ export function DashboardPage() {
     const workshop = (data.vehicleStatus.UNDER_MAINTENANCE ?? 0) + (data.vehicleStatus.BREAKDOWN ?? 0) + (data.vehicleStatus.SERVICE_DUE ?? 0) + (data.vehicleStatus.SERVICE_OVERDUE ?? 0);
     const availability = data.vehicles ? (available / data.vehicles) * 100 : 0;
     const utilization = data.vehicles ? (data.activeTrips / data.vehicles) * 100 : 0;
-    const approvalQueue = data.pendingTripApprovals + data.maintenanceAwaitingApproval + data.pendingFuelApprovals;
+    const approvalQueue = data.pendingTripApprovals + data.maintenanceAwaitingApproval + data.pendingFuelApprovals + data.pendingProcurement;
     const statusEntries = Object.entries(data.vehicleStatus).filter(([, value]) => value > 0).sort((a, b) => b[1] - a[1]);
     const alerts: AlertItem[] = [];
+    if (data.criticalOperationalAlerts > 0) alerts.push({ tone: "danger", icon: "bell", title: `${data.criticalOperationalAlerts} critical operational alert${data.criticalOperationalAlerts === 1 ? "" : "s"}`, detail: "Persistent exceptions require acknowledgement or controlled closure.", href: "/operational-alerts", tag: "Escalation" });
+    if (data.criticalIncidents > 0) alerts.push({ tone: "danger", icon: "alert", title: `${data.criticalIncidents} critical incident${data.criticalIncidents === 1 ? "" : "s"} open`, detail: "Accident, breakdown or safety investigation requires accountable corrective action.", href: "/incidents", tag: "Incident" });
     if (grounded > 0) alerts.push({ tone: "danger", icon: "alert", title: `${grounded} grounded vehicle${grounded === 1 ? "" : "s"}`, detail: "Dispatch is blocked until an authorized release returns the unit to service.", href: "/vehicles", tag: "Critical" });
     if (data.inspectionFailuresLast30Days > 0) alerts.push({ tone: "danger", icon: "inspection", title: `${data.inspectionFailuresLast30Days} inspection failure${data.inspectionFailuresLast30Days === 1 ? "" : "s"} in 30 days`, detail: "Review failed roadworthiness checks and corrective action before dispatch.", href: "/inspections", tag: "Safety" });
+    if (data.openIncidents > 0 && data.criticalIncidents === 0) alerts.push({ tone: "warning", icon: "alert", title: `${data.openIncidents} open fleet incident${data.openIncidents === 1 ? "" : "s"}`, detail: "Investigation and corrective-action records remain open.", href: "/incidents", tag: "Safety" });
     if (data.maintenanceAwaitingApproval > 0) alerts.push({ tone: "warning", icon: "wrench", title: `${data.maintenanceAwaitingApproval} repair approval${data.maintenanceAwaitingApproval === 1 ? "" : "s"} pending`, detail: "Workshop diagnosis is complete and commercial authorization is required before repair proceeds.", href: "/maintenance", tag: "Workshop" });
     if (data.maintenanceReadyForRelease > 0) alerts.push({ tone: "info", icon: "check", title: `${data.maintenanceReadyForRelease} vehicle${data.maintenanceReadyForRelease === 1 ? "" : "s"} ready for release`, detail: "Work is complete; authorized QC release is required before the vehicle becomes available.", href: "/maintenance", tag: "Release" });
     if (data.pendingFuelApprovals > 0) alerts.push({ tone: "info", icon: "gauge", title: `${data.pendingFuelApprovals} fuel request${data.pendingFuelApprovals === 1 ? "" : "s"} awaiting approval`, detail: "Fuel cannot be issued until an independent authorized approver records a decision.", href: "/fuel", tag: "Fuel" });
+    if (data.pendingProcurement > 0) alerts.push({ tone: "info", icon: "wrench", title: `${data.pendingProcurement} procurement item${data.pendingProcurement === 1 ? "" : "s"} in pipeline`, detail: "Purchase requests, approvals or ordered workshop stock still require completion.", href: "/inventory", tag: "Stores" });
+    if (data.tyresInRepair > 0) alerts.push({ tone: "warning", icon: "vehicle", title: `${data.tyresInRepair} tyre${data.tyresInRepair === 1 ? "" : "s"} in repair`, detail: "Tyre assets remain unavailable for fitment until repair or retirement is recorded.", href: "/tyres", tag: "Tyres" });
     if (data.complianceDueWithin30Days > 0) alerts.push({ tone: "warning", icon: "calendar", title: `${data.complianceDueWithin30Days} vehicle document${data.complianceDueWithin30Days === 1 ? "" : "s"} due or expired`, detail: "Insurance, licensing, fitness or other controlled documents require renewal action within 30 days or are already overdue.", href: "/compliance", tag: "Compliance" });
     if (data.licencesExpiringWithin90Days > 0) alerts.push({ tone: "warning", icon: "calendar", title: `${data.licencesExpiringWithin90Days} driver licence${data.licencesExpiringWithin90Days === 1 ? "" : "s"} expiring within 90 days`, detail: "Renewal action is required to protect driver availability and compliance.", href: "/drivers", tag: "Driver" });
     if (data.pendingTripApprovals > 0) alerts.push({ tone: "info", icon: "trip", title: `${data.pendingTripApprovals} trip request${data.pendingTripApprovals === 1 ? "" : "s"} awaiting approval`, detail: "Movement remains blocked until an independent authorized decision is recorded.", href: "/trips", tag: "Trip" });
-    if (!alerts.length) alerts.push({ tone: "success", icon: "check", title: "No critical fleet exceptions", detail: "The live summary has no grounded assets, failed inspections, pending approvals, near-term compliance exposure or licence exceptions.", href: "/vehicles", tag: "Healthy" });
+    if (!alerts.length) alerts.push({ tone: "success", icon: "check", title: "No critical fleet exceptions", detail: "The live summary has no grounded assets, failed inspections, pending approvals, incidents or active escalations requiring management attention.", href: "/vehicles", tag: "Healthy" });
     return { available, grounded, workshop, availability, utilization, approvalQueue, statusEntries, alerts };
   }, [data]);
 
   if (error) return <div className="error-box">{error}</div>;
-  if (!data || !derived) return <div className="loading-state-v2"><span className="loading-ring" /><b>Building the live operating picture…</b><span>Reading fleet, driver, trip, workshop, fuel and compliance status.</span></div>;
+  if (!data || !derived) return <div className="loading-state-v2"><span className="loading-ring" /><b>Building the live operating picture…</b><span>Reading fleet, driver, trip, workshop, fuel, compliance and advanced operations status.</span></div>;
   const firstName = me?.fullName.split(/\s+/)[0] || "Fleet Manager";
 
   return <>
     <section className="page-hero-v2">
-      <div><span className="eyebrow-v2">LIVE OPERATING PICTURE</span><h2>Fleet control is online, {firstName}.</h2><p>Monitor availability, movement, driver readiness, workshop exposure, fuel governance and compliance risk from one accountable operating view.</p></div>
+      <div><span className="eyebrow-v2">LIVE OPERATING PICTURE</span><h2>Fleet control is online, {firstName}.</h2><p>Monitor availability, movement, driver readiness, workshop exposure, fuel governance, compliance, incidents, stores and connected-fleet exceptions from one accountable operating view.</p></div>
       <div className="hero-actions-v2">
         {me?.permissions.includes("report.view") && <Link className="button-v2 secondary" to="/reports"><Icon name="audit" size={16} /> Management reports</Link>}
         {me?.permissions.includes("vehicle.create") && <Link className="button-v2 primary" to="/vehicles"><Icon name="plus" size={16} /> Add vehicle</Link>}
@@ -62,8 +67,8 @@ export function DashboardPage() {
     <div className="command-strip-v2">
       <div className="command-status-v2"><span className="live-pulse" /><div><b>Operations live</b><span>{data.activeTrips} active trip{data.activeTrips === 1 ? "" : "s"} · {data.activeAssignments} active assignment{data.activeAssignments === 1 ? "" : "s"}</span></div></div>
       <div className="command-stat-v2"><span>Fleet availability</span><b>{derived.availability.toFixed(1)}%</b></div>
-      <div className="command-stat-v2"><span>Utilized now</span><b>{derived.utilization.toFixed(1)}%</b></div>
-      <div className="command-stat-v2"><span>Open approval queue</span><b>{derived.approvalQueue}</b></div>
+      <div className="command-stat-v2"><span>Connected vehicles</span><b>{data.telemetryReportingVehicles}</b></div>
+      <div className="command-stat-v2"><span>Approval pipeline</span><b>{derived.approvalQueue}</b></div>
     </div>
 
     <div className="kpi-grid-v2">
@@ -71,10 +76,14 @@ export function DashboardPage() {
       <KpiCard label="Available now" value={derived.available} detail={`${derived.availability.toFixed(1)}% fleet availability`} icon="check" tone="success" />
       <KpiCard label="On active trips" value={data.activeTrips} detail={`${data.activeAssignments} active assignments`} icon="route" tone="info" />
       <KpiCard label="Workshop control" value={data.activeMaintenance} detail={`${data.maintenanceAwaitingApproval} approval · ${data.maintenanceReadyForRelease} release`} icon="wrench" tone={data.activeMaintenance > 0 ? "warning" : "neutral"} />
-      <KpiCard label="Critical control" value={derived.grounded + data.inspectionFailuresLast30Days} detail="Grounded + recent inspection failures" icon="alert" tone={derived.grounded + data.inspectionFailuresLast30Days > 0 ? "danger" : "success"} />
+      <KpiCard label="Operational alerts" value={data.openOperationalAlerts} detail={`${data.criticalOperationalAlerts} critical escalation${data.criticalOperationalAlerts === 1 ? "" : "s"}`} icon="bell" tone={data.criticalOperationalAlerts > 0 ? "danger" : data.openOperationalAlerts > 0 ? "warning" : "success"} />
+      <KpiCard label="Open incidents" value={data.openIncidents} detail={`${data.criticalIncidents} critical`} icon="alert" tone={data.criticalIncidents > 0 ? "danger" : data.openIncidents > 0 ? "warning" : "success"} />
       <KpiCard label="Driver readiness" value={data.activeDrivers} detail={`${data.drivers} registered driver records`} icon="driver" tone="neutral" />
       <KpiCard label="Fuel approvals" value={data.pendingFuelApprovals} detail={`30-day spend UGX ${data.fuelSpendLast30Days.toLocaleString()}`} icon="gauge" tone={data.pendingFuelApprovals > 0 ? "warning" : "success"} />
       <KpiCard label="Compliance watch" value={data.complianceDueWithin30Days} detail="Vehicle documents due / expired within 30 days" icon="calendar" tone={data.complianceDueWithin30Days > 0 ? "warning" : "success"} />
+      <KpiCard label="Tyres in repair" value={data.tyresInRepair} detail="Unavailable tyre assets" icon="vehicle" tone={data.tyresInRepair > 0 ? "warning" : "success"} />
+      <KpiCard label="Procurement pipeline" value={data.pendingProcurement} detail="Requested, approved or ordered" icon="wrench" tone={data.pendingProcurement > 0 ? "info" : "success"} />
+      <KpiCard label="Telemetry coverage" value={data.telemetryReportingVehicles} detail={`${data.vehicles ? ((data.telemetryReportingVehicles / data.vehicles) * 100).toFixed(0) : 0}% of registered fleet`} icon="route" tone="info" />
     </div>
 
     <div className="dashboard-grid-v2">
@@ -92,20 +101,20 @@ export function DashboardPage() {
       </section>
 
       <section className="panel-v2 span-8">
-        <div className="panel-head-v2"><div><span className="panel-kicker">CONTROLLED OPERATIONS</span><h3>Authorization & fleet-health workflow</h3><p>Movement, workshop, fuel and compliance actions remain permission-gated and auditable.</p></div></div>
+        <div className="panel-head-v2"><div><span className="panel-kicker">CONTROLLED OPERATIONS</span><h3>Authorization & fleet-health workflow</h3><p>Movement, workshop, fuel, procurement and exception actions remain permission-gated and auditable.</p></div></div>
         <div className="panel-body-v2 workflow-grid-v2">
           <Link to="/trips"><span className="workflow-icon"><Icon name="trip" /></span><div><span>Trip approvals</span><b>{data.pendingTripApprovals}</b><small>Awaiting fleet decision</small></div></Link>
           <Link to="/maintenance"><span className="workflow-icon"><Icon name="wrench" /></span><div><span>Workshop approvals</span><b>{data.maintenanceAwaitingApproval}</b><small>Diagnosed, awaiting authority</small></div></Link>
-          <Link to="/fuel"><span className="workflow-icon"><Icon name="gauge" /></span><div><span>Fuel approvals</span><b>{data.pendingFuelApprovals}</b><small>Requests awaiting decision</small></div></Link>
-          <Link to="/compliance"><span className="workflow-icon"><Icon name="alert" /></span><div><span>Compliance exposure</span><b>{data.complianceDueWithin30Days}</b><small>Due / expired within 30 days</small></div></Link>
+          <Link to="/inventory"><span className="workflow-icon"><Icon name="audit" /></span><div><span>Procurement pipeline</span><b>{data.pendingProcurement}</b><small>Request to goods receipt</small></div></Link>
+          <Link to="/operational-alerts"><span className="workflow-icon"><Icon name="bell" /></span><div><span>Operational alerts</span><b>{data.openOperationalAlerts}</b><small>Persistent escalation queue</small></div></Link>
         </div>
       </section>
 
       <section className="panel-v2 span-4">
-        <div className="panel-head-v2"><div><span className="panel-kicker">DRIVER COMPLIANCE</span><h3>Readiness watch</h3><p>Licence validity and active operator coverage.</p></div><Link to="/drivers">Driver register <Icon name="arrow" size={14} /></Link></div>
+        <div className="panel-head-v2"><div><span className="panel-kicker">CONNECTED & HUMAN READINESS</span><h3>Coverage watch</h3><p>Driver readiness and connected-fleet reporting.</p></div></div>
         <div className="panel-body-v2 readiness-v2">
-          <div className="readiness-ring" style={{ "--value": `${data.drivers ? Math.min(100, (data.activeDrivers / data.drivers) * 100) : 0}%` } as React.CSSProperties}><div><b>{data.drivers ? ((data.activeDrivers / data.drivers) * 100).toFixed(0) : 0}%</b><span>active</span></div></div>
-          <div className="readiness-copy-v2"><div><span>Active drivers</span><b>{data.activeDrivers}</b></div><div><span>Driver records</span><b>{data.drivers}</b></div><div className={data.licencesExpiringWithin90Days > 0 ? "attention" : ""}><span>Licence watch</span><b>{data.licencesExpiringWithin90Days}</b></div></div>
+          <div className="readiness-ring" style={{ "--value": `${data.drivers ? Math.min(100, (data.activeDrivers / data.drivers) * 100) : 0}%` } as React.CSSProperties}><div><b>{data.drivers ? ((data.activeDrivers / data.drivers) * 100).toFixed(0) : 0}%</b><span>drivers active</span></div></div>
+          <div className="readiness-copy-v2"><div><span>Active drivers</span><b>{data.activeDrivers}</b></div><div><span>Telemetry vehicles</span><b>{data.telemetryReportingVehicles}</b></div><div className={data.licencesExpiringWithin90Days > 0 ? "attention" : ""}><span>Licence watch</span><b>{data.licencesExpiringWithin90Days}</b></div></div>
         </div>
       </section>
     </div>

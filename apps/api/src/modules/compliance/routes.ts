@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
@@ -25,7 +26,16 @@ complianceRouter.patch("/documents/:id",requirePermission(PERMISSIONS.COMPLIANCE
   const row=await prisma.complianceDocument.findFirst({where:{id,organizationId:req.auth!.organizationId}});if(!row)return res.status(404).json({error:"Compliance document not found."});
   if(input.vehicleId){const vehicle=await prisma.vehicle.findFirst({where:{id:input.vehicleId,organizationId:req.auth!.organizationId,archivedAt:null},select:{id:true}});if(!vehicle)return res.status(404).json({error:"Vehicle not found."});}
   const issue=input.issueDate===undefined?row.issueDate:input.issueDate;const expiry=input.expiryDate??row.expiryDate;if(issue&&expiry<issue)return res.status(400).json({error:"Expiry date cannot be earlier than issue date."});
-  const updated=await prisma.complianceDocument.update({where:{id:row.id},data:{vehicleId:input.vehicleId, type:input.type,referenceNumber:input.referenceNumber,provider:input.provider,issueDate:input.issueDate,expiryDate:input.expiryDate,notes:input.notes,documentUrl:input.documentUrl}});
+  const data:Prisma.ComplianceDocumentUncheckedUpdateInput={};
+  if(input.vehicleId!==undefined)data.vehicleId=input.vehicleId;
+  if(input.type!==undefined)data.type=input.type;
+  if(input.referenceNumber!==undefined)data.referenceNumber=input.referenceNumber;
+  if(input.provider!==undefined)data.provider=input.provider;
+  if(input.issueDate!==undefined)data.issueDate=input.issueDate;
+  if(input.expiryDate!==undefined)data.expiryDate=input.expiryDate;
+  if(input.notes!==undefined)data.notes=input.notes;
+  if(input.documentUrl!==undefined)data.documentUrl=input.documentUrl;
+  const updated=await prisma.complianceDocument.update({where:{id:row.id},data});
   await audit(req,{action:"UPDATE",recordType:"COMPLIANCE_DOCUMENT",recordId:row.id,oldValue:row,newValue:updated});return res.json(updated);
 });
 

@@ -15,6 +15,12 @@ const managementGroups: { label: string; links: ManagementLink[] }[] = [
     { to: "/trips", label: "Trip Control", icon: "trip", permission: "trip.view" },
     { to: "/inspections", label: "Inspections", icon: "inspection", permission: "inspection.view" }
   ]},
+  { label: "Fleet health", links: [
+    { to: "/maintenance", label: "Maintenance", icon: "wrench", permission: "maintenance.view" },
+    { to: "/fuel", label: "Fuel Control", icon: "gauge", permission: "fuel.view" },
+    { to: "/compliance", label: "Alerts & Compliance", icon: "alert", permission: "compliance.view" },
+    { to: "/reports", label: "Reports", icon: "audit", permission: "report.view" }
+  ]},
   { label: "Administration", links: [
     { to: "/users", label: "Users & Access", icon: "users", permission: "user.view" },
     { to: "/branches", label: "Branches", icon: "branch", permission: "branch.view" },
@@ -28,6 +34,7 @@ const driverLinks: DriverLink[] = [
   { to: "/assignments", label: "My Vehicle", icon: "vehicle" },
   { to: "/trips", label: "My Trips", icon: "trip" },
   { to: "/inspections", label: "Inspections", icon: "inspection" },
+  { to: "/fuel", label: "My Fuel", icon: "gauge" },
   { to: "/my-profile", label: "My Profile", icon: "profile" }
 ];
 
@@ -38,6 +45,10 @@ const pageTitles: Record<string, { eyebrow: string; title: string }> = {
   "/assignments": { eyebrow: "CONTROL / ACCOUNTABILITY", title: "Vehicle Assignments" },
   "/trips": { eyebrow: "MOVEMENT / AUTHORIZATION", title: "Trip Control" },
   "/inspections": { eyebrow: "SAFETY / ROADWORTHINESS", title: "Vehicle Inspections" },
+  "/maintenance": { eyebrow: "FLEET HEALTH / WORKSHOP", title: "Maintenance & Workshop" },
+  "/fuel": { eyebrow: "FLEET HEALTH / FUEL GOVERNANCE", title: "Fuel Control" },
+  "/compliance": { eyebrow: "FLEET HEALTH / RISK", title: "Alerts & Compliance" },
+  "/reports": { eyebrow: "MANAGEMENT / ANALYTICS", title: "Fleet Reports" },
   "/users": { eyebrow: "ADMINISTRATION / ACCESS", title: "Users & Permissions" },
   "/branches": { eyebrow: "ADMINISTRATION / STRUCTURE", title: "Branches" },
   "/departments": { eyebrow: "ADMINISTRATION / STRUCTURE", title: "Departments" },

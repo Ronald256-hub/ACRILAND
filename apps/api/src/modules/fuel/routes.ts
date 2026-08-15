@@ -39,8 +39,14 @@ fuelRouter.post("/:id/decision",requirePermission(PERMISSIONS.FUEL_APPROVE),asyn
   const id=routeId(req.params.id);if(!id)return res.status(400).json({error:"Invalid fuel request id."});
   const input=z.object({decision:z.enum(["APPROVED","REJECTED"]),comments:z.string().max(1500).optional()}).parse(req.body);
   const row=await prisma.fuelTransaction.findFirst({where:{id,organizationId:req.auth!.organizationId}});if(!row)return res.status(404).json({error:"Fuel request not found."});if(row.status!=="REQUESTED")return res.status(409).json({error:"Only pending fuel requests can be approved or rejected."});
-  assertDifferentApprover(row.requestedByUserId,req.auth!.userId);if(input.decision==="REJECTED"&&!input.comments)return res.status(400).json({error:"A rejection reason is required."});
-  const updated=await prisma.fuelTransaction.update({where:{id:row.id},data:input.decision==="APPROVED"?{status:"APPROVED",approvedByUserId:req.auth!.userId,approvedAt:new Date(),rejectionReason:null}:{status:"REJECTED",approvedByUserId:req.auth!.userId,approvedAt:new Date(),rejectionReason:input.comments}});
+  assertDifferentApprover(row.requestedByUserId,req.auth!.userId);
+  let updated;
+  if(input.decision==="APPROVED"){
+    updated=await prisma.fuelTransaction.update({where:{id:row.id},data:{status:"APPROVED",approvedByUserId:req.auth!.userId,approvedAt:new Date(),rejectionReason:null}});
+  }else{
+    const rejectionReason=input.comments;if(!rejectionReason)return res.status(400).json({error:"A rejection reason is required."});
+    updated=await prisma.fuelTransaction.update({where:{id:row.id},data:{status:"REJECTED",approvedByUserId:req.auth!.userId,approvedAt:new Date(),rejectionReason}});
+  }
   await audit(req,{action:input.decision==="APPROVED"?"APPROVE":"REJECT",recordType:"FUEL_TRANSACTION",recordId:row.id,oldValue:{status:row.status},newValue:{status:updated.status},...(input.comments?{reason:input.comments}:{})});return res.json(updated);
 });
 

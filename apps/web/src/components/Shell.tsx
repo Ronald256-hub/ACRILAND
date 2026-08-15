@@ -13,6 +13,7 @@ const managementGroups: { label: string; links: ManagementLink[] }[] = [
     { to: "/drivers", label: "Drivers", icon: "driver", permission: "driver.view" },
     { to: "/assignments", label: "Assignments", icon: "assignment", permission: "assignment.view" },
     { to: "/trips", label: "Trip Control", icon: "trip", permission: "trip.view" },
+    { to: "/dispatch", label: "Dispatch Control", icon: "route", permission: "dispatch.view" },
     { to: "/inspections", label: "Inspections", icon: "inspection", permission: "inspection.view" }
   ]},
   { label: "Fleet health", links: [
@@ -29,6 +30,13 @@ const managementGroups: { label: string; links: ManagementLink[] }[] = [
     { to: "/operational-alerts", label: "Operational Alerts", icon: "bell", permission: "alert.view" },
     { to: "/telemetry", label: "GPS & Telemetry", icon: "route", permission: "telemetry.view" }
   ]},
+  { label: "Control & intelligence", links: [
+    { to: "/routes-geofences", label: "Routes & Geofences", icon: "route", permission: "geofence.view" },
+    { to: "/driver-safety", label: "Driver Safety", icon: "shield", permission: "safety.view" },
+    { to: "/vendors", label: "Vendors & Suppliers", icon: "users", permission: "vendor.view" },
+    { to: "/lifecycle", label: "Lifecycle & TCO", icon: "gauge", permission: "lifecycle.view" },
+    { to: "/notifications", label: "Notification Delivery", icon: "bell", permission: "notification.view" }
+  ]},
   { label: "Administration", links: [
     { to: "/users", label: "Users & Access", icon: "users", permission: "user.view" },
     { to: "/branches", label: "Branches", icon: "branch", permission: "branch.view" },
@@ -44,6 +52,7 @@ const driverLinks: DriverLink[] = [
   { to: "/inspections", label: "Inspections", icon: "inspection" },
   { to: "/fuel", label: "My Fuel", icon: "gauge" },
   { to: "/incidents", label: "Report Incident", icon: "alert" },
+  { to: "/my-safety", label: "My Safety", icon: "shield" },
   { to: "/my-profile", label: "My Profile", icon: "profile" }
 ];
 
@@ -53,6 +62,7 @@ const pageTitles: Record<string, { eyebrow: string; title: string }> = {
   "/drivers": { eyebrow: "PEOPLE / DRIVER READINESS", title: "Driver Operations" },
   "/assignments": { eyebrow: "CONTROL / ACCOUNTABILITY", title: "Vehicle Assignments" },
   "/trips": { eyebrow: "MOVEMENT / AUTHORIZATION", title: "Trip Control" },
+  "/dispatch": { eyebrow: "MOVEMENT / DISPATCH", title: "Dispatch Control" },
   "/inspections": { eyebrow: "SAFETY / ROADWORTHINESS", title: "Vehicle Inspections" },
   "/maintenance": { eyebrow: "FLEET HEALTH / WORKSHOP", title: "Maintenance & Workshop" },
   "/fuel": { eyebrow: "FLEET HEALTH / FUEL GOVERNANCE", title: "Fuel Control" },
@@ -64,11 +74,17 @@ const pageTitles: Record<string, { eyebrow: string; title: string }> = {
   "/preventive-maintenance": { eyebrow: "FLEET HEALTH / PREVENTION", title: "Preventive Maintenance" },
   "/operational-alerts": { eyebrow: "OPERATIONS / ESCALATION", title: "Operational Alerts" },
   "/telemetry": { eyebrow: "CONNECTED FLEET / TELEMETRY", title: "GPS & Telemetry" },
+  "/routes-geofences": { eyebrow: "CONNECTED FLEET / ROUTE GOVERNANCE", title: "Routes & Geofences" },
+  "/driver-safety": { eyebrow: "PEOPLE / SAFETY INTELLIGENCE", title: "Driver Safety & Scoring" },
+  "/vendors": { eyebrow: "SUPPLY CHAIN / MASTER DATA", title: "Vendors & Suppliers" },
+  "/lifecycle": { eyebrow: "FINANCE / ASSET LIFECYCLE", title: "Lifecycle, TCO & Disposal" },
+  "/notifications": { eyebrow: "ESCALATION / DELIVERY", title: "Notification Delivery" },
   "/users": { eyebrow: "ADMINISTRATION / ACCESS", title: "Users & Permissions" },
   "/branches": { eyebrow: "ADMINISTRATION / STRUCTURE", title: "Branches" },
   "/departments": { eyebrow: "ADMINISTRATION / STRUCTURE", title: "Departments" },
   "/audit": { eyebrow: "SECURITY / GOVERNANCE", title: "Audit Trail" },
-  "/my-profile": { eyebrow: "DRIVER / ACCOUNT", title: "My Profile" }
+  "/my-profile": { eyebrow: "DRIVER / ACCOUNT", title: "My Profile" },
+  "/my-safety": { eyebrow: "DRIVER / SAFETY", title: "My Safety Score" }
 };
 
 export function Shell() {

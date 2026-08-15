@@ -216,6 +216,81 @@ enum OperationalAlertStatus {
   CLOSED
 }
 
+enum DispatchStatus {
+  PLANNED
+  READY
+  DISPATCHED
+  COMPLETED
+  CANCELLED
+  BLOCKED
+}
+
+enum GeofenceShape {
+  CIRCLE
+  POLYGON
+}
+
+enum GeofencePolicy {
+  MONITOR
+  ALLOWED
+  RESTRICTED
+}
+
+enum GeofenceEventType {
+  ENTRY
+  EXIT
+}
+
+enum SafetyEventType {
+  SPEEDING
+  GEOFENCE_BREACH
+  INCIDENT
+  INSPECTION_FAILURE
+  AFTER_HOURS
+  OTHER
+}
+
+enum VendorStatus {
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+enum CostCategory {
+  ACQUISITION
+  FUEL
+  MAINTENANCE
+  TYRE
+  INSURANCE
+  LICENCE
+  TAX
+  TOLL
+  PARKING
+  ACCIDENT
+  OTHER
+}
+
+enum DisposalStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
+enum NotificationChannel {
+  EMAIL
+  IN_APP
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  SKIPPED
+}
+
 model Organization {
   id                  String                 @id @default(uuid()) @db.Uuid
   name                String
@@ -928,21 +1003,21 @@ model ProcurementRequest {
 }
 
 model PreventiveMaintenancePlan {
-  id                    String                @id @default(uuid()) @db.Uuid
-  organizationId        String                @db.Uuid
-  vehicleId             String                @db.Uuid
-  name                  String
-  status                MaintenancePlanStatus @default(ACTIVE)
-  intervalKm            Int?
-  intervalDays          Int?
-  lastCompletedAt       DateTime?
+  id                      String                @id @default(uuid()) @db.Uuid
+  organizationId          String                @db.Uuid
+  vehicleId               String                @db.Uuid
+  name                    String
+  status                  MaintenancePlanStatus @default(ACTIVE)
+  intervalKm              Int?
+  intervalDays            Int?
+  lastCompletedAt         DateTime?
   lastCompletedOdometerKm Int?
-  nextDueAt             DateTime?
-  nextDueKm             Int?
-  notes                 String?
-  createdByUserId       String                @db.Uuid
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
+  nextDueAt               DateTime?
+  nextDueKm               Int?
+  notes                   String?
+  createdByUserId         String                @db.Uuid
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
 
   @@unique([organizationId, vehicleId, name])
   @@index([organizationId, status, nextDueAt])
@@ -950,24 +1025,24 @@ model PreventiveMaintenancePlan {
 }
 
 model OperationalAlert {
-  id                    String                   @id @default(uuid()) @db.Uuid
-  organizationId        String                   @db.Uuid
-  category              String
-  severity              OperationalAlertSeverity
-  status                OperationalAlertStatus  @default(OPEN)
-  sourceType            String
-  sourceId              String
-  title                 String
-  message               String
-  vehicleId             String?                  @db.Uuid
-  assignedToUserId      String?                  @db.Uuid
-  dueAt                 DateTime?
-  acknowledgedByUserId  String?                  @db.Uuid
-  acknowledgedAt        DateTime?
-  closedByUserId        String?                  @db.Uuid
-  closedAt              DateTime?
-  createdAt             DateTime                 @default(now())
-  updatedAt             DateTime                 @updatedAt
+  id                   String                   @id @default(uuid()) @db.Uuid
+  organizationId       String                   @db.Uuid
+  category             String
+  severity             OperationalAlertSeverity
+  status               OperationalAlertStatus  @default(OPEN)
+  sourceType           String
+  sourceId             String
+  title                String
+  message              String
+  vehicleId            String?                  @db.Uuid
+  assignedToUserId     String?                  @db.Uuid
+  dueAt                DateTime?
+  acknowledgedByUserId String?                  @db.Uuid
+  acknowledgedAt       DateTime?
+  closedByUserId       String?                  @db.Uuid
+  closedAt             DateTime?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
 
   @@unique([organizationId, sourceType, sourceId, category])
   @@index([organizationId, status, severity])
@@ -975,25 +1050,267 @@ model OperationalAlert {
 }
 
 model TelemetrySnapshot {
-  id                    String   @id @default(uuid()) @db.Uuid
-  organizationId        String   @db.Uuid
-  vehicleId             String   @db.Uuid
-  provider              String
-  externalDeviceId      String?
-  latitude              Decimal  @db.Decimal(10, 7)
-  longitude             Decimal  @db.Decimal(10, 7)
-  speedKph              Decimal? @db.Decimal(8, 2)
-  ignitionOn            Boolean?
-  odometerKm            Int?
-  fuelPercent           Int?
-  headingDegrees        Int?
-  recordedAt            DateTime
-  receivedAt            DateTime @default(now())
-  rawPayload            Json?
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String   @db.Uuid
+  vehicleId        String   @db.Uuid
+  provider         String
+  externalDeviceId String?
+  latitude         Decimal  @db.Decimal(10, 7)
+  longitude        Decimal  @db.Decimal(10, 7)
+  speedKph         Decimal? @db.Decimal(8, 2)
+  ignitionOn       Boolean?
+  odometerKm       Int?
+  fuelPercent      Int?
+  headingDegrees   Int?
+  recordedAt       DateTime
+  receivedAt       DateTime @default(now())
+  rawPayload       Json?
 
   @@index([organizationId, recordedAt])
   @@index([vehicleId, recordedAt])
   @@index([externalDeviceId, recordedAt])
+}
+
+model RoutePlan {
+  id                      String   @id @default(uuid()) @db.Uuid
+  organizationId          String   @db.Uuid
+  name                    String
+  origin                  String
+  destination             String
+  waypoints               Json?
+  estimatedDistanceKm     Decimal? @db.Decimal(12, 2)
+  expectedDurationMinutes Int?
+  notes                   String?
+  isActive                Boolean  @default(true)
+  createdByUserId         String   @db.Uuid
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@unique([organizationId, name])
+  @@index([organizationId, isActive])
+}
+
+model Geofence {
+  id                String          @id @default(uuid()) @db.Uuid
+  organizationId    String          @db.Uuid
+  name              String
+  shape             GeofenceShape
+  policy            GeofencePolicy  @default(MONITOR)
+  centerLatitude    Decimal?        @db.Decimal(10, 7)
+  centerLongitude   Decimal?        @db.Decimal(10, 7)
+  radiusMetres      Int?
+  polygon           Json?
+  speedLimitKph     Int?
+  alertOnEntry      Boolean         @default(false)
+  alertOnExit       Boolean         @default(false)
+  isActive          Boolean         @default(true)
+  notes             String?
+  createdByUserId   String          @db.Uuid
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([organizationId, name])
+  @@index([organizationId, isActive])
+}
+
+model DispatchPlan {
+  id                 String         @id @default(uuid()) @db.Uuid
+  organizationId     String         @db.Uuid
+  dispatchNumber     String
+  tripId             String         @db.Uuid
+  vehicleId          String         @db.Uuid
+  driverId           String         @db.Uuid
+  routePlanId        String?        @db.Uuid
+  geofenceId         String?        @db.Uuid
+  plannedDeparture   DateTime
+  plannedReturn      DateTime
+  priority           Int            @default(3)
+  status             DispatchStatus @default(PLANNED)
+  dispatchNotes      String?
+  createdByUserId    String         @db.Uuid
+  dispatchedByUserId String?        @db.Uuid
+  dispatchedAt       DateTime?
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  cancelReason       String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@unique([organizationId, dispatchNumber])
+  @@index([organizationId, status, plannedDeparture])
+  @@index([vehicleId, status])
+  @@index([driverId, status])
+}
+
+model GeofenceState {
+  id              String   @id @default(uuid()) @db.Uuid
+  organizationId  String   @db.Uuid
+  geofenceId      String   @db.Uuid
+  vehicleId       String   @db.Uuid
+  isInside        Boolean
+  lastEvaluatedAt DateTime
+  lastChangedAt   DateTime
+  updatedAt       DateTime @updatedAt
+
+  @@unique([geofenceId, vehicleId])
+  @@index([organizationId, updatedAt])
+}
+
+model GeofenceEvent {
+  id                  String            @id @default(uuid()) @db.Uuid
+  organizationId      String            @db.Uuid
+  geofenceId          String            @db.Uuid
+  vehicleId           String            @db.Uuid
+  telemetrySnapshotId String            @db.Uuid
+  type                GeofenceEventType
+  latitude            Decimal           @db.Decimal(10, 7)
+  longitude           Decimal           @db.Decimal(10, 7)
+  occurredAt          DateTime
+  createdAt           DateTime          @default(now())
+
+  @@unique([geofenceId, vehicleId, telemetrySnapshotId, type])
+  @@index([organizationId, occurredAt])
+  @@index([vehicleId, occurredAt])
+}
+
+model DriverSafetyEvent {
+  id             String          @id @default(uuid()) @db.Uuid
+  organizationId String          @db.Uuid
+  driverId       String?         @db.Uuid
+  vehicleId      String?         @db.Uuid
+  tripId         String?         @db.Uuid
+  type           SafetyEventType
+  penaltyPoints  Int
+  sourceType     String
+  sourceId       String
+  description    String
+  occurredAt     DateTime
+  createdAt      DateTime        @default(now())
+
+  @@unique([organizationId, sourceType, sourceId, type])
+  @@index([driverId, occurredAt])
+  @@index([organizationId, type, occurredAt])
+}
+
+model DriverScoreSnapshot {
+  id                  String   @id @default(uuid()) @db.Uuid
+  organizationId      String   @db.Uuid
+  driverId            String   @db.Uuid
+  periodStart         DateTime
+  periodEnd           DateTime
+  score               Int
+  safetyEventPoints   Int      @default(0)
+  incidentPoints      Int      @default(0)
+  inspectionPoints    Int      @default(0)
+  riskBand            String
+  details             Json?
+  calculatedByUserId  String   @db.Uuid
+  calculatedAt        DateTime @default(now())
+
+  @@unique([organizationId, driverId, periodStart, periodEnd])
+  @@index([organizationId, calculatedAt])
+  @@index([driverId, calculatedAt])
+}
+
+model Vendor {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  code           String
+  name           String
+  category       String
+  contactPerson  String?
+  email          String?
+  phone          String?
+  taxId          String?
+  paymentTerms   String?
+  status         VendorStatus @default(ACTIVE)
+  rating         Int?
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, name])
+  @@index([organizationId, status, category])
+}
+
+model VehicleCostEntry {
+  id              String       @id @default(uuid()) @db.Uuid
+  organizationId  String       @db.Uuid
+  vehicleId       String       @db.Uuid
+  category        CostCategory
+  amount          Decimal      @db.Decimal(18, 2)
+  currency        String       @default("UGX")
+  occurredAt      DateTime
+  description     String
+  vendorId        String?      @db.Uuid
+  sourceType      String?
+  sourceId        String?
+  createdByUserId String       @db.Uuid
+  createdAt       DateTime     @default(now())
+
+  @@index([organizationId, occurredAt])
+  @@index([vehicleId, occurredAt])
+  @@index([vendorId, occurredAt])
+}
+
+model VehicleDisposal {
+  id                String         @id @default(uuid()) @db.Uuid
+  organizationId    String         @db.Uuid
+  vehicleId         String         @db.Uuid
+  status            DisposalStatus @default(REQUESTED)
+  requestedByUserId String         @db.Uuid
+  approvedByUserId  String?        @db.Uuid
+  disposalMethod    String
+  reason            String
+  estimatedProceeds Decimal?       @db.Decimal(18, 2)
+  actualProceeds    Decimal?       @db.Decimal(18, 2)
+  buyer             String?
+  rejectionReason   String?
+  notes             String?
+  requestedAt       DateTime       @default(now())
+  approvedAt        DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([organizationId, status, requestedAt])
+  @@index([vehicleId, status])
+}
+
+model NotificationPreference {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  userId         String   @unique @db.Uuid
+  emailEnabled   Boolean  @default(false)
+  criticalOnly   Boolean  @default(true)
+  categories     Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId, emailEnabled])
+}
+
+model NotificationDelivery {
+  id             String                     @id @default(uuid()) @db.Uuid
+  organizationId String                     @db.Uuid
+  alertId        String?                    @db.Uuid
+  userId         String                     @db.Uuid
+  channel        NotificationChannel
+  destination    String
+  subject        String
+  body           String
+  status         NotificationDeliveryStatus @default(PENDING)
+  attempts       Int                        @default(0)
+  lastAttemptAt  DateTime?
+  sentAt         DateTime?
+  errorMessage   String?
+  dedupeKey      String                     @unique
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  @@index([organizationId, status, createdAt])
+  @@index([userId, createdAt])
 }
 
 model AuditLog {

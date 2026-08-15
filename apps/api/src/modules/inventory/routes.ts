@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
@@ -24,7 +25,9 @@ inventoryRouter.post("/items",requirePermission(PERMISSIONS.INVENTORY_MANAGE),as
 });
 
 inventoryRouter.patch("/items/:id",requirePermission(PERMISSIONS.INVENTORY_MANAGE),async(req,res)=>{
-  const id=routeId(req.params.id);if(!id)return res.status(400).json({error:"Invalid inventory item id."});const input=z.object({name:z.string().min(2).max(200).optional(),category:z.string().min(2).max(120).optional(),unit:z.string().min(1).max(20).optional(),reorderLevel:z.number().min(0).optional(),unitCost:z.number().min(0).nullable().optional(),preferredSupplier:z.string().max(200).nullable().optional(),isActive:z.boolean().optional()}).parse(req.body);const row=await prisma.inventoryItem.findFirst({where:{id,organizationId:req.auth!.organizationId}});if(!row)return res.status(404).json({error:"Inventory item not found."});const updated=await prisma.inventoryItem.update({where:{id:row.id},data:input});await audit(req,{action:"UPDATE",recordType:"INVENTORY_ITEM",recordId:row.id,oldValue:row,newValue:updated});return res.json(updated);
+  const id=routeId(req.params.id);if(!id)return res.status(400).json({error:"Invalid inventory item id."});const input=z.object({name:z.string().min(2).max(200).optional(),category:z.string().min(2).max(120).optional(),unit:z.string().min(1).max(20).optional(),reorderLevel:z.number().min(0).optional(),unitCost:z.number().min(0).nullable().optional(),preferredSupplier:z.string().max(200).nullable().optional(),isActive:z.boolean().optional()}).parse(req.body);const row=await prisma.inventoryItem.findFirst({where:{id,organizationId:req.auth!.organizationId}});if(!row)return res.status(404).json({error:"Inventory item not found."});
+  const data:Prisma.InventoryItemUncheckedUpdateInput={};if(input.name!==undefined)data.name=input.name;if(input.category!==undefined)data.category=input.category;if(input.unit!==undefined)data.unit=input.unit;if(input.reorderLevel!==undefined)data.reorderLevel=input.reorderLevel;if(input.unitCost!==undefined)data.unitCost=input.unitCost;if(input.preferredSupplier!==undefined)data.preferredSupplier=input.preferredSupplier;if(input.isActive!==undefined)data.isActive=input.isActive;
+  const updated=await prisma.inventoryItem.update({where:{id:row.id},data});await audit(req,{action:"UPDATE",recordType:"INVENTORY_ITEM",recordId:row.id,oldValue:row,newValue:updated});return res.json(updated);
 });
 
 inventoryRouter.post("/items/:id/movements",requirePermission(PERMISSIONS.INVENTORY_MANAGE),async(req,res)=>{

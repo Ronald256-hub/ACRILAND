@@ -151,6 +151,71 @@ enum ComplianceType {
   OTHER
 }
 
+enum TyreStatus {
+  IN_STOCK
+  FITTED
+  REPAIR
+  SCRAPPED
+}
+
+enum IncidentType {
+  ACCIDENT
+  BREAKDOWN
+  DAMAGE
+  THEFT
+  SAFETY
+  OTHER
+}
+
+enum IncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentStatus {
+  OPEN
+  INVESTIGATING
+  ACTION_REQUIRED
+  CLOSED
+}
+
+enum StockMovementType {
+  RECEIPT
+  ISSUE
+  ADJUSTMENT
+  RETURN
+}
+
+enum ProcurementStatus {
+  DRAFT
+  REQUESTED
+  APPROVED
+  REJECTED
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
+enum MaintenancePlanStatus {
+  ACTIVE
+  PAUSED
+  RETIRED
+}
+
+enum OperationalAlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum OperationalAlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  CLOSED
+}
+
 model Organization {
   id                  String                 @id @default(uuid()) @db.Uuid
   name                String
@@ -724,6 +789,211 @@ model ComplianceDocument {
   @@unique([organizationId, vehicleId, type, referenceNumber])
   @@index([organizationId, expiryDate])
   @@index([vehicleId, type])
+}
+
+model TyreAsset {
+  id                    String     @id @default(uuid()) @db.Uuid
+  organizationId        String     @db.Uuid
+  serialNumber          String
+  brand                 String
+  size                  String
+  status                TyreStatus @default(IN_STOCK)
+  currentVehicleId      String?    @db.Uuid
+  position              String?
+  purchaseDate          DateTime?
+  purchaseCost          Decimal?   @db.Decimal(18, 2)
+  initialTreadDepthMm   Decimal?   @db.Decimal(6, 2)
+  currentTreadDepthMm   Decimal?   @db.Decimal(6, 2)
+  fittedAt              DateTime?
+  removedAt             DateTime?
+  mileageAtFitKm        Int?
+  mileageAtRemovalKm    Int?
+  notes                 String?
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  @@unique([organizationId, serialNumber])
+  @@index([organizationId, status])
+  @@index([currentVehicleId, status])
+}
+
+model TyreFitment {
+  id                    String   @id @default(uuid()) @db.Uuid
+  organizationId        String   @db.Uuid
+  tyreId                String   @db.Uuid
+  vehicleId             String   @db.Uuid
+  position              String
+  fittedAt              DateTime @default(now())
+  removedAt             DateTime?
+  odometerKmAtFit       Int
+  odometerKmAtRemoval   Int?
+  removalReason         String?
+  performedByUserId     String   @db.Uuid
+  createdAt             DateTime @default(now())
+
+  @@index([organizationId, vehicleId, fittedAt])
+  @@index([tyreId, fittedAt])
+}
+
+model IncidentReport {
+  id                    String           @id @default(uuid()) @db.Uuid
+  organizationId        String           @db.Uuid
+  incidentNumber        String
+  type                  IncidentType
+  severity              IncidentSeverity @default(MEDIUM)
+  status                IncidentStatus   @default(OPEN)
+  vehicleId             String?          @db.Uuid
+  driverId              String?          @db.Uuid
+  tripId                String?          @db.Uuid
+  reportedByUserId      String           @db.Uuid
+  occurredAt            DateTime
+  location              String
+  description           String
+  injuriesReported      Boolean          @default(false)
+  policeReference       String?
+  insuranceReference    String?
+  estimatedLoss         Decimal?         @db.Decimal(18, 2)
+  rootCause             String?
+  correctiveAction      String?
+  closedAt              DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  @@unique([organizationId, incidentNumber])
+  @@index([organizationId, status, severity])
+  @@index([vehicleId, occurredAt])
+  @@index([driverId, occurredAt])
+}
+
+model InventoryItem {
+  id                    String   @id @default(uuid()) @db.Uuid
+  organizationId        String   @db.Uuid
+  sku                   String
+  name                  String
+  category              String
+  unit                  String   @default("EA")
+  quantityOnHand        Decimal  @default(0) @db.Decimal(14, 3)
+  reorderLevel          Decimal  @default(0) @db.Decimal(14, 3)
+  unitCost              Decimal? @db.Decimal(18, 2)
+  preferredSupplier     String?
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([organizationId, sku])
+  @@index([organizationId, isActive])
+}
+
+model StockMovement {
+  id                    String            @id @default(uuid()) @db.Uuid
+  organizationId        String            @db.Uuid
+  itemId                String            @db.Uuid
+  type                  StockMovementType
+  quantity              Decimal           @db.Decimal(14, 3)
+  unitCost              Decimal?          @db.Decimal(18, 2)
+  reference             String?
+  workOrderId           String?           @db.Uuid
+  performedByUserId     String            @db.Uuid
+  notes                 String?
+  createdAt             DateTime          @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([itemId, createdAt])
+}
+
+model ProcurementRequest {
+  id                    String            @id @default(uuid()) @db.Uuid
+  organizationId        String            @db.Uuid
+  requestNumber         String
+  itemId                String            @db.Uuid
+  requestedQuantity     Decimal           @db.Decimal(14, 3)
+  status                ProcurementStatus @default(REQUESTED)
+  requestedByUserId     String            @db.Uuid
+  approvedByUserId      String?           @db.Uuid
+  supplier              String?
+  unitPrice             Decimal?          @db.Decimal(18, 2)
+  totalCost             Decimal?          @db.Decimal(18, 2)
+  neededBy              DateTime?
+  justification         String
+  rejectionReason       String?
+  approvedAt            DateTime?
+  orderedAt             DateTime?
+  receivedAt            DateTime?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  @@unique([organizationId, requestNumber])
+  @@index([organizationId, status, createdAt])
+  @@index([itemId, status])
+}
+
+model PreventiveMaintenancePlan {
+  id                    String                @id @default(uuid()) @db.Uuid
+  organizationId        String                @db.Uuid
+  vehicleId             String                @db.Uuid
+  name                  String
+  status                MaintenancePlanStatus @default(ACTIVE)
+  intervalKm            Int?
+  intervalDays          Int?
+  lastCompletedAt       DateTime?
+  lastCompletedOdometerKm Int?
+  nextDueAt             DateTime?
+  nextDueKm             Int?
+  notes                 String?
+  createdByUserId       String                @db.Uuid
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  @@unique([organizationId, vehicleId, name])
+  @@index([organizationId, status, nextDueAt])
+  @@index([vehicleId, status])
+}
+
+model OperationalAlert {
+  id                    String                   @id @default(uuid()) @db.Uuid
+  organizationId        String                   @db.Uuid
+  category              String
+  severity              OperationalAlertSeverity
+  status                OperationalAlertStatus  @default(OPEN)
+  sourceType            String
+  sourceId              String
+  title                 String
+  message               String
+  vehicleId             String?                  @db.Uuid
+  assignedToUserId      String?                  @db.Uuid
+  dueAt                 DateTime?
+  acknowledgedByUserId  String?                  @db.Uuid
+  acknowledgedAt        DateTime?
+  closedByUserId        String?                  @db.Uuid
+  closedAt              DateTime?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+
+  @@unique([organizationId, sourceType, sourceId, category])
+  @@index([organizationId, status, severity])
+  @@index([assignedToUserId, status])
+}
+
+model TelemetrySnapshot {
+  id                    String   @id @default(uuid()) @db.Uuid
+  organizationId        String   @db.Uuid
+  vehicleId             String   @db.Uuid
+  provider              String
+  externalDeviceId      String?
+  latitude              Decimal  @db.Decimal(10, 7)
+  longitude             Decimal  @db.Decimal(10, 7)
+  speedKph              Decimal? @db.Decimal(8, 2)
+  ignitionOn            Boolean?
+  odometerKm            Int?
+  fuelPercent           Int?
+  headingDegrees        Int?
+  recordedAt            DateTime
+  receivedAt            DateTime @default(now())
+  rawPayload            Json?
+
+  @@index([organizationId, recordedAt])
+  @@index([vehicleId, recordedAt])
+  @@index([externalDeviceId, recordedAt])
 }
 
 model AuditLog {

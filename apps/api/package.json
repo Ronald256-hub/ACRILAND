@@ -12,7 +12,8 @@
     "db:migrate": "prisma migrate dev",
     "bootstrap": "tsx scripts/bootstrap-admin.ts",
     "db:deploy": "prisma migrate deploy",
-    "sync:defaults": "tsx scripts/sync-platform-defaults.ts"
+    "sync:defaults": "tsx scripts/sync-platform-defaults.ts",
+    "notifications:run": "tsx scripts/run-operational-notifications.ts"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",

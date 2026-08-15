@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { calculateDriverScore,haversineMetres,overlapsWindow,pointInGeofence,speedPenalty,validateDispatchWindow } from "../src/domain/controlIntelligence.ts";
-import { BusinessRuleError } from "../src/domain/rules.ts";
 
 test("circle geofence evaluates inside and outside positions",()=>{
   const fence={shape:"CIRCLE" as const,centerLatitude:0,centerLongitude:0,radiusMetres:1000};
@@ -17,7 +16,7 @@ test("polygon geofence evaluates a point using ray casting",()=>{
 });
 
 test("dispatch window rejects return before departure",()=>{
-  assert.throws(()=>validateDispatchWindow(new Date("2026-08-15T10:00:00Z"),new Date("2026-08-15T09:00:00Z")),BusinessRuleError);
+  assert.throws(()=>validateDispatchWindow(new Date("2026-08-15T10:00:00Z"),new Date("2026-08-15T09:00:00Z")),RangeError);
   assert.doesNotThrow(()=>validateDispatchWindow(new Date("2026-08-15T10:00:00Z"),new Date("2026-08-15T12:00:00Z")));
 });
 

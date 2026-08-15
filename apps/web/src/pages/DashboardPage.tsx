@@ -1,5 +1,126 @@
-import { useEffect,useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api/client";
+import { useAuth } from "../auth/AuthContext";
 import type { DashboardSummary } from "../types";
+import { Icon, type IconName } from "../components/Icon";
 import { KpiCard } from "../components/KpiCard";
-export function DashboardPage(){const[d,setD]=useState<DashboardSummary|null>(null),[e,setE]=useState("");useEffect(()=>{void api<DashboardSummary>("/dashboard/summary").then(setD).catch(x=>setE(x.message));},[]);if(e)return <div className="error-box">{e}</div>;if(!d)return <div className="loading">Loading fleet health…</div>;return <><div className="section-head"><div><span className="eyebrow">Live operating picture</span><h2>Fleet health at a glance</h2></div><span className="muted">Fleet operations active</span></div><div className="kpi-grid"><KpiCard label="Total vehicles" value={d.vehicles}/><KpiCard label="Active assignments" value={d.activeAssignments}/><KpiCard label="Vehicles on trip" value={d.activeTrips}/><KpiCard label="Pending approvals" value={d.pendingTripApprovals}/><KpiCard label="Grounded" value={d.vehicleStatus.GROUNDED??0}/><KpiCard label="Inspection failures" value={d.inspectionFailuresLast30Days} detail="Last 30 days"/><KpiCard label="Active drivers" value={d.activeDrivers} detail={`${d.drivers} total driver records`}/><KpiCard label="Licence watch" value={d.licencesExpiringWithin90Days} detail="Expiring within 90 days"/><KpiCard label="Active users" value={d.activeUsers}/><KpiCard label="Branches" value={d.branches}/></div><div className="panel"><div className="section-head"><h3>Vehicle status distribution</h3></div><div className="status-bars">{Object.entries(d.vehicleStatus).length?Object.entries(d.vehicleStatus).map(([k,v])=><div key={k}><span>{k.replaceAll("_"," ")}</span><div className="bar"><i style={{width:`${Math.max(4,(v/Math.max(d.vehicles,1))*100)}%`}}/></div><b>{v}</b></div>):<div className="empty">No vehicles recorded yet. Add the fleet register to begin monitoring.</div>}</div></div></>}
+
+type AlertItem = { tone: "danger" | "warning" | "info" | "success"; icon: IconName; title: string; detail: string; href: string; tag: string };
+
+const statusLabels: Record<string, string> = {
+  AVAILABLE: "Available",
+  RESERVED: "Reserved",
+  ASSIGNED: "Assigned",
+  ON_TRIP: "On trip",
+  PARKED: "Parked",
+  SERVICE_DUE: "Service due",
+  SERVICE_OVERDUE: "Service overdue",
+  UNDER_INSPECTION: "Under inspection",
+  UNDER_MAINTENANCE: "Workshop",
+  BREAKDOWN: "Breakdown",
+  ACCIDENT: "Accident",
+  GROUNDED: "Grounded",
+  OUT_OF_SERVICE: "Out of service",
+  DISPOSED: "Disposed"
+};
+
+const statusTone: Record<string, string> = {
+  AVAILABLE: "green", ON_TRIP: "blue", ASSIGNED: "cyan", RESERVED: "violet", PARKED: "slate",
+  SERVICE_DUE: "amber", SERVICE_OVERDUE: "orange", UNDER_INSPECTION: "amber", UNDER_MAINTENANCE: "amber",
+  BREAKDOWN: "red", ACCIDENT: "red", GROUNDED: "red", OUT_OF_SERVICE: "red", DISPOSED: "slate"
+};
+
+export function DashboardPage() {
+  const { me } = useAuth();
+  const [data, setData] = useState<DashboardSummary | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => { void api<DashboardSummary>("/dashboard/summary").then(setData).catch((e) => setError(e instanceof Error ? e.message : "Unable to load fleet health.")); }, []);
+
+  const derived = useMemo(() => {
+    if (!data) return null;
+    const available = data.vehicleStatus.AVAILABLE ?? 0;
+    const grounded = data.vehicleStatus.GROUNDED ?? 0;
+    const workshop = (data.vehicleStatus.UNDER_MAINTENANCE ?? 0) + (data.vehicleStatus.BREAKDOWN ?? 0) + (data.vehicleStatus.SERVICE_DUE ?? 0) + (data.vehicleStatus.SERVICE_OVERDUE ?? 0);
+    const availability = data.vehicles ? (available / data.vehicles) * 100 : 0;
+    const utilization = data.vehicles ? (data.activeTrips / data.vehicles) * 100 : 0;
+    const statusEntries = Object.entries(data.vehicleStatus).filter(([, value]) => value > 0).sort((a, b) => b[1] - a[1]);
+    const alerts: AlertItem[] = [];
+    if (grounded > 0) alerts.push({ tone: "danger", icon: "alert", title: `${grounded} grounded vehicle${grounded === 1 ? "" : "s"}`, detail: "Dispatch is blocked until an authorized release returns the unit to service.", href: "/vehicles", tag: "Critical" });
+    if (data.inspectionFailuresLast30Days > 0) alerts.push({ tone: "danger", icon: "inspection", title: `${data.inspectionFailuresLast30Days} inspection failure${data.inspectionFailuresLast30Days === 1 ? "" : "s"} in 30 days`, detail: "Review failed roadworthiness checks and corrective action before dispatch.", href: "/inspections", tag: "Safety" });
+    if (data.licencesExpiringWithin90Days > 0) alerts.push({ tone: "warning", icon: "calendar", title: `${data.licencesExpiringWithin90Days} licence${data.licencesExpiringWithin90Days === 1 ? "" : "s"} expiring within 90 days`, detail: "Renewal action is required to protect driver availability and compliance.", href: "/drivers", tag: "Compliance" });
+    if (data.pendingTripApprovals > 0) alerts.push({ tone: "info", icon: "trip", title: `${data.pendingTripApprovals} trip request${data.pendingTripApprovals === 1 ? "" : "s"} awaiting approval`, detail: "Movement remains blocked until an independent authorized decision is recorded.", href: "/trips", tag: "Approval" });
+    if (!alerts.length) alerts.push({ tone: "success", icon: "check", title: "No critical fleet exceptions", detail: "The current summary has no grounded vehicles, inspection failures, expiring licences or pending trip approvals.", href: "/vehicles", tag: "Healthy" });
+    return { available, grounded, workshop, availability, utilization, statusEntries, alerts };
+  }, [data]);
+
+  if (error) return <div className="error-box">{error}</div>;
+  if (!data || !derived) return <div className="loading-state-v2"><span className="loading-ring" /><b>Building the live operating picture…</b><span>Reading fleet, driver, trip and compliance status.</span></div>;
+
+  const firstName = me?.fullName.split(/\s+/)[0] || "Fleet Manager";
+
+  return <>
+    <section className="page-hero-v2">
+      <div><span className="eyebrow-v2">LIVE OPERATING PICTURE</span><h2>Fleet control is online, {firstName}.</h2><p>Monitor availability, authorized movement, driver readiness and safety exceptions from one accountable operating view.</p></div>
+      <div className="hero-actions-v2">
+        {me?.permissions.includes("trip.view") && <Link className="button-v2 secondary" to="/trips"><Icon name="trip" size={16} /> Trip control</Link>}
+        {me?.permissions.includes("vehicle.create") && <Link className="button-v2 primary" to="/vehicles"><Icon name="plus" size={16} /> Add vehicle</Link>}
+      </div>
+    </section>
+
+    <div className="command-strip-v2">
+      <div className="command-status-v2"><span className="live-pulse" /><div><b>Operations live</b><span>{data.activeTrips} active trip{data.activeTrips === 1 ? "" : "s"} · {data.activeAssignments} active assignment{data.activeAssignments === 1 ? "" : "s"}</span></div></div>
+      <div className="command-stat-v2"><span>Fleet availability</span><b>{derived.availability.toFixed(1)}%</b></div>
+      <div className="command-stat-v2"><span>Utilized now</span><b>{derived.utilization.toFixed(1)}%</b></div>
+      <div className="command-stat-v2"><span>Open approval queue</span><b>{data.pendingTripApprovals}</b></div>
+    </div>
+
+    <div className="kpi-grid-v2">
+      <KpiCard label="Total fleet" value={data.vehicles} detail={`${data.branches} authorized branch${data.branches === 1 ? "" : "es"}`} icon="vehicle" tone="neutral" />
+      <KpiCard label="Available now" value={derived.available} detail={`${derived.availability.toFixed(1)}% fleet availability`} icon="check" tone="success" />
+      <KpiCard label="On active trips" value={data.activeTrips} detail={`${data.activeAssignments} active assignments`} icon="route" tone="info" />
+      <KpiCard label="Workshop exposure" value={derived.workshop} detail="Maintenance, breakdown and service states" icon="wrench" tone={derived.workshop > 0 ? "warning" : "neutral"} />
+      <KpiCard label="Critical control" value={derived.grounded + data.inspectionFailuresLast30Days} detail="Grounded + recent inspection failures" icon="alert" tone={derived.grounded + data.inspectionFailuresLast30Days > 0 ? "danger" : "success"} />
+      <KpiCard label="Driver readiness" value={data.activeDrivers} detail={`${data.drivers} registered driver records`} icon="driver" tone="neutral" />
+      <KpiCard label="Licence watch" value={data.licencesExpiringWithin90Days} detail="Expiring within 90 days" icon="calendar" tone={data.licencesExpiringWithin90Days > 0 ? "warning" : "success"} />
+      <KpiCard label="Active users" value={data.activeUsers} detail="Authenticated workforce" icon="users" tone="neutral" />
+    </div>
+
+    <div className="dashboard-grid-v2">
+      <section className="panel-v2 span-7">
+        <div className="panel-head-v2"><div><span className="panel-kicker">FLEET HEALTH</span><h3>Availability by operating state</h3><p>Live distribution across the registered fleet.</p></div><Link to="/vehicles">Open fleet register <Icon name="arrow" size={14} /></Link></div>
+        <div className="panel-body-v2">
+          {derived.statusEntries.length ? <div className="status-stack-v2">{derived.statusEntries.map(([status, value]) => {
+            const pct = data.vehicles ? (value / data.vehicles) * 100 : 0;
+            return <div className="status-row-v2" key={status}><div className="status-label-v2"><span className={`status-dot-v2 ${statusTone[status] ?? "slate"}`} /><span>{statusLabels[status] ?? status.replaceAll("_", " ")}</span></div><div className="status-track-v2"><i className={statusTone[status] ?? "slate"} style={{ width: `${Math.max(2, pct)}%` }} /></div><b>{value}</b><small>{pct.toFixed(1)}%</small></div>;
+          })}</div> : <div className="empty-state-v2"><Icon name="vehicle" size={26} /><b>No vehicle records yet</b><span>Add the fleet register to begin operational monitoring.</span></div>}
+          <div className="health-summary-v2"><div><span>Available</span><b>{derived.availability.toFixed(1)}%</b><small>Ready for controlled allocation</small></div><div><span>Utilized</span><b>{derived.utilization.toFixed(1)}%</b><small>Vehicles on active trips</small></div><div><span>Workshop exposure</span><b>{data.vehicles ? ((derived.workshop / data.vehicles) * 100).toFixed(1) : "0.0"}%</b><small>Maintenance and service states</small></div></div>
+        </div>
+      </section>
+
+      <section className="panel-v2 span-5">
+        <div className="panel-head-v2"><div><span className="panel-kicker">MANAGEMENT ATTENTION</span><h3>Priority control queue</h3><p>Exceptions requiring accountable action.</p></div></div>
+        <div className="panel-body-v2 alert-list-v2">{derived.alerts.map((alert, index) => <Link className={`alert-item-v2 ${alert.tone}`} to={alert.href} key={`${alert.title}-${index}`}><span className="alert-icon-v2"><Icon name={alert.icon} size={17} /></span><div><b>{alert.title}</b><p>{alert.detail}</p></div><span className="alert-tag-v2">{alert.tag}</span></Link>)}</div>
+      </section>
+
+      <section className="panel-v2 span-8">
+        <div className="panel-head-v2"><div><span className="panel-kicker">MOVEMENT CONTROL</span><h3>Operational workflow</h3><p>No vehicle moves without assignment, approval and inspection accountability.</p></div><Link to="/trips">Manage trips <Icon name="arrow" size={14} /></Link></div>
+        <div className="panel-body-v2 workflow-grid-v2">
+          <Link to="/trips"><span className="workflow-icon"><Icon name="trip" /></span><div><span>Approval queue</span><b>{data.pendingTripApprovals}</b><small>Awaiting fleet decision</small></div></Link>
+          <Link to="/assignments"><span className="workflow-icon"><Icon name="assignment" /></span><div><span>Active assignments</span><b>{data.activeAssignments}</b><small>Driver ↔ vehicle accountability</small></div></Link>
+          <Link to="/trips"><span className="workflow-icon"><Icon name="route" /></span><div><span>Active movement</span><b>{data.activeTrips}</b><small>Trips currently underway</small></div></Link>
+          <Link to="/inspections"><span className="workflow-icon"><Icon name="inspection" /></span><div><span>Safety failures</span><b>{data.inspectionFailuresLast30Days}</b><small>Last 30 days</small></div></Link>
+        </div>
+      </section>
+
+      <section className="panel-v2 span-4">
+        <div className="panel-head-v2"><div><span className="panel-kicker">DRIVER COMPLIANCE</span><h3>Readiness watch</h3><p>Licence validity and active operator coverage.</p></div><Link to="/drivers">Driver register <Icon name="arrow" size={14} /></Link></div>
+        <div className="panel-body-v2 readiness-v2">
+          <div className="readiness-ring" style={{ "--value": `${data.drivers ? Math.min(100, (data.activeDrivers / data.drivers) * 100) : 0}%` } as React.CSSProperties}><div><b>{data.drivers ? ((data.activeDrivers / data.drivers) * 100).toFixed(0) : 0}%</b><span>active</span></div></div>
+          <div className="readiness-copy-v2"><div><span>Active drivers</span><b>{data.activeDrivers}</b></div><div><span>Driver records</span><b>{data.drivers}</b></div><div className={data.licencesExpiringWithin90Days > 0 ? "attention" : ""}><span>Licence watch</span><b>{data.licencesExpiringWithin90Days}</b></div></div>
+        </div>
+      </section>
+    </div>
+  </>;
+}

@@ -29,7 +29,9 @@ async function enrich(organizationId:string){
 dispatchRouter.get("/",requirePermission(PERMISSIONS.DISPATCH_VIEW),async(req,res)=>res.json({items:await enrich(req.auth!.organizationId)}));
 
 dispatchRouter.post("/",requirePermission(PERMISSIONS.DISPATCH_MANAGE),async(req,res)=>{
-  const input=z.object({tripId:z.string().uuid(),routePlanId:z.string().uuid().optional(),geofenceId:z.string().uuid().optional(),plannedDeparture:z.coerce.date(),plannedReturn:z.coerce.date(),priority:z.number().int().min(1).max(5).default(3),dispatchNotes:z.string().max(2500).optional()}).parse(req.body);validateDispatchWindow(input.plannedDeparture,input.plannedReturn);const organizationId=req.auth!.organizationId;
+  const input=z.object({tripId:z.string().uuid(),routePlanId:z.string().uuid().optional(),geofenceId:z.string().uuid().optional(),plannedDeparture:z.coerce.date(),plannedReturn:z.coerce.date(),priority:z.number().int().min(1).max(5).default(3),dispatchNotes:z.string().max(2500).optional()}).parse(req.body);
+  try{validateDispatchWindow(input.plannedDeparture,input.plannedReturn);}catch(error){return res.status(400).json({error:error instanceof Error?error.message:"Invalid dispatch window."});}
+  const organizationId=req.auth!.organizationId;
   const trip=await prisma.trip.findFirst({where:{id:input.tripId,organizationId},select:{id:true,tripNumber:true,status:true,vehicleId:true,driverId:true}});if(!trip)return res.status(404).json({error:"Trip not found."});if(!["APPROVED","ALLOCATED","PRE_TRIP_INSPECTION","READY_TO_DEPART"].includes(trip.status))return res.status(409).json({error:`Dispatch planning requires an approved trip before departure; current trip status is ${trip.status}.`});if(!trip.vehicleId||!trip.driverId)return res.status(409).json({error:"Trip must have both vehicle and driver allocation before dispatch planning."});
   const [vehicle,driver,route,geofence]=await Promise.all([
     prisma.vehicle.findFirst({where:{id:trip.vehicleId,organizationId,archivedAt:null}}),prisma.driver.findFirst({where:{id:trip.driverId,organizationId,archivedAt:null}}),

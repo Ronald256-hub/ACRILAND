@@ -285,6 +285,7 @@ enum NotificationChannel {
 
 enum NotificationDeliveryStatus {
   PENDING
+  PROCESSING
   SENT
   FAILED
   SKIPPED
@@ -1116,7 +1117,7 @@ model DispatchPlan {
   id                 String         @id @default(uuid()) @db.Uuid
   organizationId     String         @db.Uuid
   dispatchNumber     String
-  tripId             String         @unique @db.Uuid
+  tripId             String         @db.Uuid
   vehicleId          String         @db.Uuid
   driverId           String         @db.Uuid
   routePlanId        String?        @db.Uuid
@@ -1160,7 +1161,7 @@ model GeofenceEvent {
   organizationId      String            @db.Uuid
   geofenceId          String            @db.Uuid
   vehicleId           String            @db.Uuid
-  telemetrySnapshotId String?           @db.Uuid
+  telemetrySnapshotId String            @db.Uuid
   type                GeofenceEventType
   latitude            Decimal           @db.Decimal(10, 7)
   longitude           Decimal           @db.Decimal(10, 7)
@@ -1173,18 +1174,18 @@ model GeofenceEvent {
 }
 
 model DriverSafetyEvent {
-  id            String          @id @default(uuid()) @db.Uuid
-  organizationId String         @db.Uuid
-  driverId       String?        @db.Uuid
-  vehicleId      String?        @db.Uuid
-  tripId         String?        @db.Uuid
+  id             String          @id @default(uuid()) @db.Uuid
+  organizationId String          @db.Uuid
+  driverId       String?         @db.Uuid
+  vehicleId      String?         @db.Uuid
+  tripId         String?         @db.Uuid
   type           SafetyEventType
   penaltyPoints  Int
   sourceType     String
   sourceId       String
   description    String
   occurredAt     DateTime
-  createdAt      DateTime       @default(now())
+  createdAt      DateTime        @default(now())
 
   @@unique([organizationId, sourceType, sourceId, type])
   @@index([driverId, occurredAt])

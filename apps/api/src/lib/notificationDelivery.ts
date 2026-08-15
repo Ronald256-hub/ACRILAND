@@ -1,0 +1,18 @@
+import { prisma } from "./prisma.js";
+import { sendOperationalNotification } from "./mailer.js";
+
+function categoryAllowed(categories:unknown,category:string):boolean{if(!Array.isArray(categories)||categories.length===0)return true;return categories.some(value=>typeof value==="string"&&value===category);}
+
+export async function queueOrganizationAlertEmails(organizationId:string):Promise<number>{
+  const preferences=await prisma.notificationPreference.findMany({where:{organizationId,emailEnabled:true}});if(!preferences.length)return 0;const userIds=preferences.map(p=>p.userId);const users=await prisma.user.findMany({where:{organizationId,id:{in:userIds},status:"ACTIVE",archivedAt:null,roles:{some:{role:{permissions:{some:{permission:{key:"alert.view"}}}}}}},select:{id:true,email:true,fullName:true}});const userMap=new Map(users.map(u=>[u.id,u]));const alerts=await prisma.operationalAlert.findMany({where:{organizationId,status:{in:["OPEN","ACKNOWLEDGED"]}},orderBy:[{severity:"desc"},{createdAt:"desc"}],take:500});let queued=0;
+  for(const preference of preferences){const user=userMap.get(preference.userId);if(!user)continue;for(const alert of alerts){if(preference.criticalOnly&&alert.severity!=="CRITICAL")continue;if(!categoryAllowed(preference.categories,alert.category))continue;const dedupeKey=`${alert.id}:${user.id}:EMAIL`;const existing=await prisma.notificationDelivery.findUnique({where:{dedupeKey},select:{id:true}});if(existing)continue;await prisma.notificationDelivery.create({data:{organizationId,alertId:alert.id,userId:user.id,channel:"EMAIL",destination:user.email,subject:`[${alert.severity}] ${alert.title}`,body:`Hello ${user.fullName},\n\n${alert.message}\n\nCategory: ${alert.category}\nStatus: ${alert.status}\n\nACRILAND Fleet Command Centre`,status:"PENDING",dedupeKey}});queued++;}}
+  return queued;
+}
+
+export async function dispatchPendingNotifications(options?:{organizationId?:string;limit?:number}):Promise<{sent:number;failed:number;skipped:number}>{
+  const limit=Math.max(1,Math.min(200,options?.limit??50));const deliveries=await prisma.notificationDelivery.findMany({where:{...(options?.organizationId?{organizationId:options.organizationId}:{}),status:{in:["PENDING","FAILED"]},attempts:{lt:3}},orderBy:{createdAt:"asc"},take:limit});let sent=0,failed=0,skipped=0;
+  for(const delivery of deliveries){if(delivery.channel!=="EMAIL"){await prisma.notificationDelivery.update({where:{id:delivery.id},data:{status:"SKIPPED",attempts:{increment:1},lastAttemptAt:new Date(),errorMessage:"Channel delivery is not configured."}});skipped++;continue;}try{await sendOperationalNotification(delivery.destination,delivery.subject,delivery.body);await prisma.notificationDelivery.update({where:{id:delivery.id},data:{status:"SENT",attempts:{increment:1},lastAttemptAt:new Date(),sentAt:new Date(),errorMessage:null}});sent++;}catch(error){await prisma.notificationDelivery.update({where:{id:delivery.id},data:{status:"FAILED",attempts:{increment:1},lastAttemptAt:new Date(),errorMessage:error instanceof Error?error.message:"Notification delivery failed."}});failed++;}}
+  return{sent,failed,skipped};
+}
+
+export async function runAllOperationalNotifications():Promise<{queued:number;sent:number;failed:number;skipped:number}>{const organizations=await prisma.organization.findMany({where:{isActive:true},select:{id:true}});let queued=0;for(const organization of organizations)queued+=await queueOrganizationAlertEmails(organization.id);const result=await dispatchPendingNotifications({limit:200});return{queued,...result};}

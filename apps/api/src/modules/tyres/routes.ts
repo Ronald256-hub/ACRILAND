@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
@@ -31,7 +32,8 @@ tyresRouter.patch("/:id",requirePermission(PERMISSIONS.TYRE_MANAGE),async(req,re
   const id=routeId(req.params.id);if(!id)return res.status(400).json({error:"Invalid tyre id."});
   const input=z.object({brand:z.string().min(1).max(120).optional(),size:z.string().min(1).max(80).optional(),purchaseDate:z.coerce.date().nullable().optional(),purchaseCost:z.number().min(0).nullable().optional(),currentTreadDepthMm:z.number().min(0).max(100).nullable().optional(),notes:z.string().max(2000).nullable().optional()}).parse(req.body);
   const tyre=await prisma.tyreAsset.findFirst({where:{id,organizationId:req.auth!.organizationId}});if(!tyre)return res.status(404).json({error:"Tyre not found."});
-  const updated=await prisma.tyreAsset.update({where:{id:tyre.id},data:input});await audit(req,{action:"UPDATE",recordType:"TYRE",recordId:tyre.id,oldValue:tyre,newValue:updated});return res.json(updated);
+  const data:Prisma.TyreAssetUncheckedUpdateInput={};if(input.brand!==undefined)data.brand=input.brand;if(input.size!==undefined)data.size=input.size;if(input.purchaseDate!==undefined)data.purchaseDate=input.purchaseDate;if(input.purchaseCost!==undefined)data.purchaseCost=input.purchaseCost;if(input.currentTreadDepthMm!==undefined)data.currentTreadDepthMm=input.currentTreadDepthMm;if(input.notes!==undefined)data.notes=input.notes;
+  const updated=await prisma.tyreAsset.update({where:{id:tyre.id},data});await audit(req,{action:"UPDATE",recordType:"TYRE",recordId:tyre.id,oldValue:tyre,newValue:updated});return res.json(updated);
 });
 
 tyresRouter.post("/:id/fit",requirePermission(PERMISSIONS.TYRE_MANAGE),async(req,res)=>{

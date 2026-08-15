@@ -9,33 +9,19 @@ import { KpiCard } from "../components/KpiCard";
 type AlertItem = { tone: "danger" | "warning" | "info" | "success"; icon: IconName; title: string; detail: string; href: string; tag: string };
 
 const statusLabels: Record<string, string> = {
-  AVAILABLE: "Available",
-  RESERVED: "Reserved",
-  ASSIGNED: "Assigned",
-  ON_TRIP: "On trip",
-  PARKED: "Parked",
-  SERVICE_DUE: "Service due",
-  SERVICE_OVERDUE: "Service overdue",
-  UNDER_INSPECTION: "Under inspection",
-  UNDER_MAINTENANCE: "Workshop",
-  BREAKDOWN: "Breakdown",
-  ACCIDENT: "Accident",
-  GROUNDED: "Grounded",
-  OUT_OF_SERVICE: "Out of service",
-  DISPOSED: "Disposed"
+  AVAILABLE: "Available", RESERVED: "Reserved", ASSIGNED: "Assigned", ON_TRIP: "On trip", PARKED: "Parked",
+  SERVICE_DUE: "Service due", SERVICE_OVERDUE: "Service overdue", UNDER_INSPECTION: "Under inspection", UNDER_MAINTENANCE: "Workshop",
+  BREAKDOWN: "Breakdown", ACCIDENT: "Accident", GROUNDED: "Grounded", OUT_OF_SERVICE: "Out of service", DISPOSED: "Disposed"
 };
-
 const statusTone: Record<string, string> = {
-  AVAILABLE: "green", ON_TRIP: "blue", ASSIGNED: "cyan", RESERVED: "violet", PARKED: "slate",
-  SERVICE_DUE: "amber", SERVICE_OVERDUE: "orange", UNDER_INSPECTION: "amber", UNDER_MAINTENANCE: "amber",
-  BREAKDOWN: "red", ACCIDENT: "red", GROUNDED: "red", OUT_OF_SERVICE: "red", DISPOSED: "slate"
+  AVAILABLE: "green", ON_TRIP: "blue", ASSIGNED: "cyan", RESERVED: "violet", PARKED: "slate", SERVICE_DUE: "amber", SERVICE_OVERDUE: "orange",
+  UNDER_INSPECTION: "amber", UNDER_MAINTENANCE: "amber", BREAKDOWN: "red", ACCIDENT: "red", GROUNDED: "red", OUT_OF_SERVICE: "red", DISPOSED: "slate"
 };
 
 export function DashboardPage() {
   const { me } = useAuth();
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [error, setError] = useState("");
-
   useEffect(() => { void api<DashboardSummary>("/dashboard/summary").then(setData).catch((e) => setError(e instanceof Error ? e.message : "Unable to load fleet health.")); }, []);
 
   const derived = useMemo(() => {
@@ -45,26 +31,30 @@ export function DashboardPage() {
     const workshop = (data.vehicleStatus.UNDER_MAINTENANCE ?? 0) + (data.vehicleStatus.BREAKDOWN ?? 0) + (data.vehicleStatus.SERVICE_DUE ?? 0) + (data.vehicleStatus.SERVICE_OVERDUE ?? 0);
     const availability = data.vehicles ? (available / data.vehicles) * 100 : 0;
     const utilization = data.vehicles ? (data.activeTrips / data.vehicles) * 100 : 0;
+    const approvalQueue = data.pendingTripApprovals + data.maintenanceAwaitingApproval + data.pendingFuelApprovals;
     const statusEntries = Object.entries(data.vehicleStatus).filter(([, value]) => value > 0).sort((a, b) => b[1] - a[1]);
     const alerts: AlertItem[] = [];
     if (grounded > 0) alerts.push({ tone: "danger", icon: "alert", title: `${grounded} grounded vehicle${grounded === 1 ? "" : "s"}`, detail: "Dispatch is blocked until an authorized release returns the unit to service.", href: "/vehicles", tag: "Critical" });
     if (data.inspectionFailuresLast30Days > 0) alerts.push({ tone: "danger", icon: "inspection", title: `${data.inspectionFailuresLast30Days} inspection failure${data.inspectionFailuresLast30Days === 1 ? "" : "s"} in 30 days`, detail: "Review failed roadworthiness checks and corrective action before dispatch.", href: "/inspections", tag: "Safety" });
-    if (data.licencesExpiringWithin90Days > 0) alerts.push({ tone: "warning", icon: "calendar", title: `${data.licencesExpiringWithin90Days} licence${data.licencesExpiringWithin90Days === 1 ? "" : "s"} expiring within 90 days`, detail: "Renewal action is required to protect driver availability and compliance.", href: "/drivers", tag: "Compliance" });
-    if (data.pendingTripApprovals > 0) alerts.push({ tone: "info", icon: "trip", title: `${data.pendingTripApprovals} trip request${data.pendingTripApprovals === 1 ? "" : "s"} awaiting approval`, detail: "Movement remains blocked until an independent authorized decision is recorded.", href: "/trips", tag: "Approval" });
-    if (!alerts.length) alerts.push({ tone: "success", icon: "check", title: "No critical fleet exceptions", detail: "The current summary has no grounded vehicles, inspection failures, expiring licences or pending trip approvals.", href: "/vehicles", tag: "Healthy" });
-    return { available, grounded, workshop, availability, utilization, statusEntries, alerts };
+    if (data.maintenanceAwaitingApproval > 0) alerts.push({ tone: "warning", icon: "wrench", title: `${data.maintenanceAwaitingApproval} repair approval${data.maintenanceAwaitingApproval === 1 ? "" : "s"} pending`, detail: "Workshop diagnosis is complete and commercial authorization is required before repair proceeds.", href: "/maintenance", tag: "Workshop" });
+    if (data.maintenanceReadyForRelease > 0) alerts.push({ tone: "info", icon: "check", title: `${data.maintenanceReadyForRelease} vehicle${data.maintenanceReadyForRelease === 1 ? "" : "s"} ready for release`, detail: "Work is complete; authorized QC release is required before the vehicle becomes available.", href: "/maintenance", tag: "Release" });
+    if (data.pendingFuelApprovals > 0) alerts.push({ tone: "info", icon: "gauge", title: `${data.pendingFuelApprovals} fuel request${data.pendingFuelApprovals === 1 ? "" : "s"} awaiting approval`, detail: "Fuel cannot be issued until an independent authorized approver records a decision.", href: "/fuel", tag: "Fuel" });
+    if (data.complianceDueWithin30Days > 0) alerts.push({ tone: "warning", icon: "calendar", title: `${data.complianceDueWithin30Days} vehicle document${data.complianceDueWithin30Days === 1 ? "" : "s"} due or expired`, detail: "Insurance, licensing, fitness or other controlled documents require renewal action within 30 days or are already overdue.", href: "/compliance", tag: "Compliance" });
+    if (data.licencesExpiringWithin90Days > 0) alerts.push({ tone: "warning", icon: "calendar", title: `${data.licencesExpiringWithin90Days} driver licence${data.licencesExpiringWithin90Days === 1 ? "" : "s"} expiring within 90 days`, detail: "Renewal action is required to protect driver availability and compliance.", href: "/drivers", tag: "Driver" });
+    if (data.pendingTripApprovals > 0) alerts.push({ tone: "info", icon: "trip", title: `${data.pendingTripApprovals} trip request${data.pendingTripApprovals === 1 ? "" : "s"} awaiting approval`, detail: "Movement remains blocked until an independent authorized decision is recorded.", href: "/trips", tag: "Trip" });
+    if (!alerts.length) alerts.push({ tone: "success", icon: "check", title: "No critical fleet exceptions", detail: "The live summary has no grounded assets, failed inspections, pending approvals, near-term compliance exposure or licence exceptions.", href: "/vehicles", tag: "Healthy" });
+    return { available, grounded, workshop, availability, utilization, approvalQueue, statusEntries, alerts };
   }, [data]);
 
   if (error) return <div className="error-box">{error}</div>;
-  if (!data || !derived) return <div className="loading-state-v2"><span className="loading-ring" /><b>Building the live operating picture…</b><span>Reading fleet, driver, trip and compliance status.</span></div>;
-
+  if (!data || !derived) return <div className="loading-state-v2"><span className="loading-ring" /><b>Building the live operating picture…</b><span>Reading fleet, driver, trip, workshop, fuel and compliance status.</span></div>;
   const firstName = me?.fullName.split(/\s+/)[0] || "Fleet Manager";
 
   return <>
     <section className="page-hero-v2">
-      <div><span className="eyebrow-v2">LIVE OPERATING PICTURE</span><h2>Fleet control is online, {firstName}.</h2><p>Monitor availability, authorized movement, driver readiness and safety exceptions from one accountable operating view.</p></div>
+      <div><span className="eyebrow-v2">LIVE OPERATING PICTURE</span><h2>Fleet control is online, {firstName}.</h2><p>Monitor availability, movement, driver readiness, workshop exposure, fuel governance and compliance risk from one accountable operating view.</p></div>
       <div className="hero-actions-v2">
-        {me?.permissions.includes("trip.view") && <Link className="button-v2 secondary" to="/trips"><Icon name="trip" size={16} /> Trip control</Link>}
+        {me?.permissions.includes("report.view") && <Link className="button-v2 secondary" to="/reports"><Icon name="audit" size={16} /> Management reports</Link>}
         {me?.permissions.includes("vehicle.create") && <Link className="button-v2 primary" to="/vehicles"><Icon name="plus" size={16} /> Add vehicle</Link>}
       </div>
     </section>
@@ -73,44 +63,41 @@ export function DashboardPage() {
       <div className="command-status-v2"><span className="live-pulse" /><div><b>Operations live</b><span>{data.activeTrips} active trip{data.activeTrips === 1 ? "" : "s"} · {data.activeAssignments} active assignment{data.activeAssignments === 1 ? "" : "s"}</span></div></div>
       <div className="command-stat-v2"><span>Fleet availability</span><b>{derived.availability.toFixed(1)}%</b></div>
       <div className="command-stat-v2"><span>Utilized now</span><b>{derived.utilization.toFixed(1)}%</b></div>
-      <div className="command-stat-v2"><span>Open approval queue</span><b>{data.pendingTripApprovals}</b></div>
+      <div className="command-stat-v2"><span>Open approval queue</span><b>{derived.approvalQueue}</b></div>
     </div>
 
     <div className="kpi-grid-v2">
       <KpiCard label="Total fleet" value={data.vehicles} detail={`${data.branches} authorized branch${data.branches === 1 ? "" : "es"}`} icon="vehicle" tone="neutral" />
       <KpiCard label="Available now" value={derived.available} detail={`${derived.availability.toFixed(1)}% fleet availability`} icon="check" tone="success" />
       <KpiCard label="On active trips" value={data.activeTrips} detail={`${data.activeAssignments} active assignments`} icon="route" tone="info" />
-      <KpiCard label="Workshop exposure" value={derived.workshop} detail="Maintenance, breakdown and service states" icon="wrench" tone={derived.workshop > 0 ? "warning" : "neutral"} />
+      <KpiCard label="Workshop control" value={data.activeMaintenance} detail={`${data.maintenanceAwaitingApproval} approval · ${data.maintenanceReadyForRelease} release`} icon="wrench" tone={data.activeMaintenance > 0 ? "warning" : "neutral"} />
       <KpiCard label="Critical control" value={derived.grounded + data.inspectionFailuresLast30Days} detail="Grounded + recent inspection failures" icon="alert" tone={derived.grounded + data.inspectionFailuresLast30Days > 0 ? "danger" : "success"} />
       <KpiCard label="Driver readiness" value={data.activeDrivers} detail={`${data.drivers} registered driver records`} icon="driver" tone="neutral" />
-      <KpiCard label="Licence watch" value={data.licencesExpiringWithin90Days} detail="Expiring within 90 days" icon="calendar" tone={data.licencesExpiringWithin90Days > 0 ? "warning" : "success"} />
-      <KpiCard label="Active users" value={data.activeUsers} detail="Authenticated workforce" icon="users" tone="neutral" />
+      <KpiCard label="Fuel approvals" value={data.pendingFuelApprovals} detail={`30-day spend UGX ${data.fuelSpendLast30Days.toLocaleString()}`} icon="gauge" tone={data.pendingFuelApprovals > 0 ? "warning" : "success"} />
+      <KpiCard label="Compliance watch" value={data.complianceDueWithin30Days} detail="Vehicle documents due / expired within 30 days" icon="calendar" tone={data.complianceDueWithin30Days > 0 ? "warning" : "success"} />
     </div>
 
     <div className="dashboard-grid-v2">
       <section className="panel-v2 span-7">
         <div className="panel-head-v2"><div><span className="panel-kicker">FLEET HEALTH</span><h3>Availability by operating state</h3><p>Live distribution across the registered fleet.</p></div><Link to="/vehicles">Open fleet register <Icon name="arrow" size={14} /></Link></div>
         <div className="panel-body-v2">
-          {derived.statusEntries.length ? <div className="status-stack-v2">{derived.statusEntries.map(([status, value]) => {
-            const pct = data.vehicles ? (value / data.vehicles) * 100 : 0;
-            return <div className="status-row-v2" key={status}><div className="status-label-v2"><span className={`status-dot-v2 ${statusTone[status] ?? "slate"}`} /><span>{statusLabels[status] ?? status.replaceAll("_", " ")}</span></div><div className="status-track-v2"><i className={statusTone[status] ?? "slate"} style={{ width: `${Math.max(2, pct)}%` }} /></div><b>{value}</b><small>{pct.toFixed(1)}%</small></div>;
-          })}</div> : <div className="empty-state-v2"><Icon name="vehicle" size={26} /><b>No vehicle records yet</b><span>Add the fleet register to begin operational monitoring.</span></div>}
+          {derived.statusEntries.length ? <div className="status-stack-v2">{derived.statusEntries.map(([status, value]) => {const pct = data.vehicles ? (value / data.vehicles) * 100 : 0;return <div className="status-row-v2" key={status}><div className="status-label-v2"><span className={`status-dot-v2 ${statusTone[status] ?? "slate"}`} /><span>{statusLabels[status] ?? status.replaceAll("_", " ")}</span></div><div className="status-track-v2"><i className={statusTone[status] ?? "slate"} style={{ width: `${Math.max(2, pct)}%` }} /></div><b>{value}</b><small>{pct.toFixed(1)}%</small></div>;})}</div> : <div className="empty-state-v2"><Icon name="vehicle" size={26} /><b>No vehicle records yet</b><span>Add the fleet register to begin operational monitoring.</span></div>}
           <div className="health-summary-v2"><div><span>Available</span><b>{derived.availability.toFixed(1)}%</b><small>Ready for controlled allocation</small></div><div><span>Utilized</span><b>{derived.utilization.toFixed(1)}%</b><small>Vehicles on active trips</small></div><div><span>Workshop exposure</span><b>{data.vehicles ? ((derived.workshop / data.vehicles) * 100).toFixed(1) : "0.0"}%</b><small>Maintenance and service states</small></div></div>
         </div>
       </section>
 
       <section className="panel-v2 span-5">
         <div className="panel-head-v2"><div><span className="panel-kicker">MANAGEMENT ATTENTION</span><h3>Priority control queue</h3><p>Exceptions requiring accountable action.</p></div></div>
-        <div className="panel-body-v2 alert-list-v2">{derived.alerts.map((alert, index) => <Link className={`alert-item-v2 ${alert.tone}`} to={alert.href} key={`${alert.title}-${index}`}><span className="alert-icon-v2"><Icon name={alert.icon} size={17} /></span><div><b>{alert.title}</b><p>{alert.detail}</p></div><span className="alert-tag-v2">{alert.tag}</span></Link>)}</div>
+        <div className="panel-body-v2 alert-list-v2">{derived.alerts.slice(0,7).map((alert, index) => <Link className={`alert-item-v2 ${alert.tone}`} to={alert.href} key={`${alert.title}-${index}`}><span className="alert-icon-v2"><Icon name={alert.icon} size={17} /></span><div><b>{alert.title}</b><p>{alert.detail}</p></div><span className="alert-tag-v2">{alert.tag}</span></Link>)}</div>
       </section>
 
       <section className="panel-v2 span-8">
-        <div className="panel-head-v2"><div><span className="panel-kicker">MOVEMENT CONTROL</span><h3>Operational workflow</h3><p>No vehicle moves without assignment, approval and inspection accountability.</p></div><Link to="/trips">Manage trips <Icon name="arrow" size={14} /></Link></div>
+        <div className="panel-head-v2"><div><span className="panel-kicker">CONTROLLED OPERATIONS</span><h3>Authorization & fleet-health workflow</h3><p>Movement, workshop, fuel and compliance actions remain permission-gated and auditable.</p></div></div>
         <div className="panel-body-v2 workflow-grid-v2">
-          <Link to="/trips"><span className="workflow-icon"><Icon name="trip" /></span><div><span>Approval queue</span><b>{data.pendingTripApprovals}</b><small>Awaiting fleet decision</small></div></Link>
-          <Link to="/assignments"><span className="workflow-icon"><Icon name="assignment" /></span><div><span>Active assignments</span><b>{data.activeAssignments}</b><small>Driver ↔ vehicle accountability</small></div></Link>
-          <Link to="/trips"><span className="workflow-icon"><Icon name="route" /></span><div><span>Active movement</span><b>{data.activeTrips}</b><small>Trips currently underway</small></div></Link>
-          <Link to="/inspections"><span className="workflow-icon"><Icon name="inspection" /></span><div><span>Safety failures</span><b>{data.inspectionFailuresLast30Days}</b><small>Last 30 days</small></div></Link>
+          <Link to="/trips"><span className="workflow-icon"><Icon name="trip" /></span><div><span>Trip approvals</span><b>{data.pendingTripApprovals}</b><small>Awaiting fleet decision</small></div></Link>
+          <Link to="/maintenance"><span className="workflow-icon"><Icon name="wrench" /></span><div><span>Workshop approvals</span><b>{data.maintenanceAwaitingApproval}</b><small>Diagnosed, awaiting authority</small></div></Link>
+          <Link to="/fuel"><span className="workflow-icon"><Icon name="gauge" /></span><div><span>Fuel approvals</span><b>{data.pendingFuelApprovals}</b><small>Requests awaiting decision</small></div></Link>
+          <Link to="/compliance"><span className="workflow-icon"><Icon name="alert" /></span><div><span>Compliance exposure</span><b>{data.complianceDueWithin30Days}</b><small>Due / expired within 30 days</small></div></Link>
         </div>
       </section>
 

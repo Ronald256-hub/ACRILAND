@@ -5,14 +5,19 @@ import { requirePermission } from "../../middleware/authorize.js";
 
 export const dashboardRouter = Router();
 dashboardRouter.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req, res) => {
-  const organizationId = req.auth!.organizationId; const now = new Date(); const ninetyDaysFromNow = new Date(now.getTime() + 90 * 86_400_000);
-  const [vehicles, drivers, activeDrivers, licencesExpiring, branches, users, activeAssignments, activeTrips, pendingTripApprovals, inspectionFailures] = await prisma.$transaction([
+  const organizationId = req.auth!.organizationId; const now = new Date(); const ninetyDaysFromNow = new Date(now.getTime() + 90 * 86_400_000); const thirtyDaysFromNow = new Date(now.getTime() + 30 * 86_400_000); const thirtyDaysAgo = new Date(now.getTime() - 30 * 86_400_000); const ninetyDaysAgo = new Date(now.getTime() - 90 * 86_400_000);
+  const [vehicles, drivers, activeDrivers, licencesExpiring, branches, users, activeAssignments, activeTrips, pendingTripApprovals, inspectionFailures, activeMaintenance, maintenanceApprovals, readyForRelease, pendingFuelApprovals, complianceDue30, fuelSpend30, maintenanceSpend90] = await prisma.$transaction([
     prisma.vehicle.count({ where: { organizationId, archivedAt: null } }), prisma.driver.count({ where: { organizationId, archivedAt: null } }),
     prisma.driver.count({ where: { organizationId, archivedAt: null, status: "ACTIVE", licenceExpiry: { gte: now } } }), prisma.driver.count({ where: { organizationId, archivedAt: null, licenceExpiry: { gte: now, lte: ninetyDaysFromNow } } }),
     prisma.branch.count({ where: { organizationId, isActive: true } }), prisma.user.count({ where: { organizationId, archivedAt: null, status: "ACTIVE" } }),
     prisma.vehicleAssignment.count({ where: { organizationId, status: "ACTIVE" } }), prisma.trip.count({ where: { organizationId, status: "ACTIVE" } }),
-    prisma.trip.count({ where: { organizationId, status: "REQUESTED" } }), prisma.vehicleInspection.count({ where: { organizationId, status: "FAILED", createdAt: { gte: new Date(now.getTime() - 30 * 86_400_000) } } })
+    prisma.trip.count({ where: { organizationId, status: "REQUESTED" } }), prisma.vehicleInspection.count({ where: { organizationId, status: "FAILED", createdAt: { gte: thirtyDaysAgo } } }),
+    prisma.maintenanceWorkOrder.count({ where: { organizationId, status: { in: ["OPEN","DIAGNOSIS","AWAITING_APPROVAL","APPROVED","IN_PROGRESS","QC","READY_FOR_RELEASE"] } } }),
+    prisma.maintenanceWorkOrder.count({ where: { organizationId, status: "AWAITING_APPROVAL" } }), prisma.maintenanceWorkOrder.count({ where: { organizationId, status: "READY_FOR_RELEASE" } }),
+    prisma.fuelTransaction.count({ where: { organizationId, status: "REQUESTED" } }), prisma.complianceDocument.count({ where: { organizationId, expiryDate: { lte: thirtyDaysFromNow } } }),
+    prisma.fuelTransaction.aggregate({ where: { organizationId, status: "ISSUED", issuedAt: { gte: thirtyDaysAgo } }, _sum: { totalCost: true } }),
+    prisma.maintenanceWorkOrder.aggregate({ where: { organizationId, status: "CLOSED", releasedAt: { gte: ninetyDaysAgo } }, _sum: { totalCost: true } })
   ]);
   const statuses = await prisma.vehicle.groupBy({ by: ["status"], where: { organizationId, archivedAt: null }, orderBy: { status: "asc" }, _count: { _all: true } });
-  return res.json({ vehicles, drivers, activeDrivers, licencesExpiringWithin90Days: licencesExpiring, branches, activeUsers: users, activeAssignments, activeTrips, pendingTripApprovals, inspectionFailuresLast30Days: inspectionFailures, vehicleStatus: Object.fromEntries(statuses.map((row) => [row.status, row._count._all])) });
+  return res.json({ vehicles, drivers, activeDrivers, licencesExpiringWithin90Days: licencesExpiring, branches, activeUsers: users, activeAssignments, activeTrips, pendingTripApprovals, inspectionFailuresLast30Days: inspectionFailures, activeMaintenance, maintenanceAwaitingApproval: maintenanceApprovals, maintenanceReadyForRelease: readyForRelease, pendingFuelApprovals, complianceDueWithin30Days: complianceDue30, fuelSpendLast30Days: Number(fuelSpend30._sum.totalCost ?? 0), maintenanceSpendLast90Days: Number(maintenanceSpend90._sum.totalCost ?? 0), vehicleStatus: Object.fromEntries(statuses.map((row) => [row.status, row._count._all])) });
 });

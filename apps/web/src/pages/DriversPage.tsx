@@ -21,6 +21,7 @@ type Driver = {
   user?: { status: string; email?: string } | null;
 };
 
+const driverFilters = [["ALL", "All drivers"], ["ACTIVE", "Active"], ["LICENCE_WATCH", "Licence watch"], ["UNAVAILABLE", "Unavailable"]] as const;
 function daysUntil(value: string) { return Math.ceil((new Date(value).getTime() - Date.now()) / 86400000); }
 
 export function DriversPage() {
@@ -86,7 +87,7 @@ export function DriversPage() {
     <div className="manager-control-note-v2"><Icon name="shield" /><div><b>Controlled driver access</b><span>Drivers cannot self-register. Authorized management provisions portal access, and first login requires a password change. Drivers may maintain only their own profile photo.</span></div></div>
 
     <section className="panel-v2">
-      <div className="fleet-toolbar-v2"><div className="fleet-search-v2"><Icon name="search" size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search driver, employee no., licence, phone or email" /></div><div className="filter-tabs-v2">{[["ALL", "All drivers"], ["ACTIVE", "Active"], ["LICENCE_WATCH", "Licence watch"], ["UNAVAILABLE", "Unavailable"]].map(([value, label]) => <button className={filter === value ? "active" : ""} key={value} onClick={() => setFilter(value)}>{label}</button>)}</div></div>
+      <div className="fleet-toolbar-v2"><div className="fleet-search-v2"><Icon name="search" size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search driver, employee no., licence, phone or email" /></div><div className="filter-tabs-v2">{driverFilters.map(([value, label]) => <button className={filter === value ? "active" : ""} key={value} onClick={() => setFilter(value)}>{label}</button>)}</div></div>
       <div className={`fleet-register-layout-v2 ${selected ? "with-detail" : ""}`}>
         <div className="table-wrap fleet-table-v2"><table><thead><tr><th>Driver</th><th>Employee</th><th>Licence</th><th>Expiry</th><th>Status</th><th>Portal</th><th /></tr></thead><tbody>{loading ? <tr><td colSpan={7}><div className="empty-state-v2"><span className="loading-ring small" /><b>Loading driver readiness…</b></div></td></tr> : visible.length ? visible.map((driver) => {
           const days = daysUntil(driver.licenceExpiry); const expiryTone = days < 0 ? "danger" : days <= 30 ? "danger" : days <= 90 ? "warning" : "good";

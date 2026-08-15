@@ -21,6 +21,14 @@ const managementGroups: { label: string; links: ManagementLink[] }[] = [
     { to: "/compliance", label: "Alerts & Compliance", icon: "alert", permission: "compliance.view" },
     { to: "/reports", label: "Reports", icon: "audit", permission: "report.view" }
   ]},
+  { label: "Advanced operations", links: [
+    { to: "/tyres", label: "Tyres & Fitment", icon: "vehicle", permission: "tyre.view" },
+    { to: "/incidents", label: "Incidents", icon: "alert", permission: "incident.view" },
+    { to: "/inventory", label: "Inventory & Procurement", icon: "wrench", permission: "inventory.view" },
+    { to: "/preventive-maintenance", label: "PM Planning", icon: "calendar", permission: "pm.view" },
+    { to: "/operational-alerts", label: "Operational Alerts", icon: "bell", permission: "alert.view" },
+    { to: "/telemetry", label: "GPS & Telemetry", icon: "route", permission: "telemetry.view" }
+  ]},
   { label: "Administration", links: [
     { to: "/users", label: "Users & Access", icon: "users", permission: "user.view" },
     { to: "/branches", label: "Branches", icon: "branch", permission: "branch.view" },
@@ -35,6 +43,7 @@ const driverLinks: DriverLink[] = [
   { to: "/trips", label: "My Trips", icon: "trip" },
   { to: "/inspections", label: "Inspections", icon: "inspection" },
   { to: "/fuel", label: "My Fuel", icon: "gauge" },
+  { to: "/incidents", label: "Report Incident", icon: "alert" },
   { to: "/my-profile", label: "My Profile", icon: "profile" }
 ];
 
@@ -49,6 +58,12 @@ const pageTitles: Record<string, { eyebrow: string; title: string }> = {
   "/fuel": { eyebrow: "FLEET HEALTH / FUEL GOVERNANCE", title: "Fuel Control" },
   "/compliance": { eyebrow: "FLEET HEALTH / RISK", title: "Alerts & Compliance" },
   "/reports": { eyebrow: "MANAGEMENT / ANALYTICS", title: "Fleet Reports" },
+  "/tyres": { eyebrow: "ADVANCED OPERATIONS / TYRE CONTROL", title: "Tyres & Fitment" },
+  "/incidents": { eyebrow: "SAFETY / INCIDENT RESPONSE", title: "Incidents & Accidents" },
+  "/inventory": { eyebrow: "WORKSHOP STORES / PROCUREMENT", title: "Inventory & Procurement" },
+  "/preventive-maintenance": { eyebrow: "FLEET HEALTH / PREVENTION", title: "Preventive Maintenance" },
+  "/operational-alerts": { eyebrow: "OPERATIONS / ESCALATION", title: "Operational Alerts" },
+  "/telemetry": { eyebrow: "CONNECTED FLEET / TELEMETRY", title: "GPS & Telemetry" },
   "/users": { eyebrow: "ADMINISTRATION / ACCESS", title: "Users & Permissions" },
   "/branches": { eyebrow: "ADMINISTRATION / STRUCTURE", title: "Branches" },
   "/departments": { eyebrow: "ADMINISTRATION / STRUCTURE", title: "Departments" },
@@ -105,7 +120,7 @@ export function Shell() {
         <div className="topbar-actions-v2">
           {searchOpen && <div className="global-search"><Icon name="search" size={16} /><input autoFocus aria-label="Search workspace" placeholder="Search fleet workspace…" onBlur={() => setSearchOpen(false)} /></div>}
           {!searchOpen && <button className="icon-button-v2" aria-label="Search" onClick={() => setSearchOpen(true)}><Icon name="search" size={17} /></button>}
-          <button className="icon-button-v2 notification-button" aria-label="Notifications"><Icon name="bell" size={17} /><span /></button>
+          <NavLink className="icon-button-v2 notification-button" aria-label="Operational alerts" to={isDriver?"/":"/operational-alerts"}><Icon name="bell" size={17} /><span /></NavLink>
           <div className="topbar-user-v2"><div className="user-avatar-v2 light">{initials || "U"}</div><div><b>{me?.fullName}</b><span>{me?.department?.name ?? me?.roles[0] ?? "Authorized user"}</span></div></div>
         </div>
       </header>

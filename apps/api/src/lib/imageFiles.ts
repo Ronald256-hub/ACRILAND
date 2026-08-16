@@ -1,4 +1,5 @@
 export type SupportedImageMime = "image/jpeg" | "image/png" | "image/webp";
+export type PrivateEvidenceMime = SupportedImageMime | "application/pdf";
 
 export function detectSupportedImageMime(buffer: Buffer): SupportedImageMime | null {
   if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return "image/jpeg";
@@ -13,6 +14,11 @@ export function detectSupportedImageMime(buffer: Buffer): SupportedImageMime | n
     buffer.subarray(8, 12).toString("ascii") === "WEBP"
   ) return "image/webp";
   return null;
+}
+
+export function detectPrivateEvidenceMime(buffer: Buffer): PrivateEvidenceMime | null {
+  if (buffer.length >= 5 && buffer.subarray(0, 5).toString("ascii") === "%PDF-") return "application/pdf";
+  return detectSupportedImageMime(buffer);
 }
 
 export function extensionForMime(mime: SupportedImageMime): "jpg" | "png" | "webp" {

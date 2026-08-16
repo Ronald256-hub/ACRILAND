@@ -27,6 +27,10 @@ import { vendorsRouter } from "./modules/vendors/routes.js";
 import { lifecycleRouter } from "./modules/lifecycle/routes.js";
 import { notificationsRouter } from "./modules/notifications/routes.js";
 import { workspaceRouter } from "./modules/workspace/routes.js";
+import { batteriesRouter } from "./modules/batteries/routes.js";
+import { handoversRouter } from "./modules/handovers/routes.js";
+import { documentsRouter } from "./modules/documents/routes.js";
+import { approvalEngineRouter } from "./modules/approvalEngine/routes.js";
 import { requireAuth } from "./middleware/auth.js";
 
 export const apiRouter=Router();
@@ -60,3 +64,7 @@ apiRouter.use("/vendors",vendorsRouter);
 apiRouter.use("/lifecycle",lifecycleRouter);
 apiRouter.use("/notifications",notificationsRouter);
 apiRouter.use("/workspace",workspaceRouter);
+apiRouter.use("/batteries",batteriesRouter);
+apiRouter.use("/handovers",handoversRouter);
+apiRouter.use("/documents",documentsRouter);
+apiRouter.use("/approval-engine",approvalEngineRouter);

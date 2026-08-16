@@ -1,0 +1,11 @@
+import { Router } from "express";
+import { prisma } from "../../lib/prisma.js";
+import { PERMISSIONS } from "../../domain/permissions.js";
+
+export const handoverPolicyRouter=Router();
+type Row={id:string;fromDriverId:string|null;toDriverId:string|null;status:string;fromUserId:string|null;toUserId:string|null};
+async function rows(organizationId:string){return prisma.$queryRaw<Row[]>`SELECT h."id",h."fromDriverId",h."toDriverId",h."status",fd."userId" AS "fromUserId",td."userId" AS "toUserId" FROM "VehicleHandover" h LEFT JOIN "Driver" fd ON fd."id"=h."fromDriverId" LEFT JOIN "Driver" td ON td."id"=h."toDriverId" WHERE h."organizationId"=${organizationId}::uuid`;}
+
+handoverPolicyRouter.get("/actions",async(req,res)=>{const permitted=req.auth!.permissions.has(PERMISSIONS.HANDOVER_MANAGE)||req.auth!.permissions.has(PERMISSIONS.HANDOVER_ACCEPT_SELF)||req.auth!.permissions.has(PERMISSIONS.HANDOVER_VIEW);if(!permitted)return res.json({acceptIds:[],rejectIds:[],evidenceIds:[]});const all=await rows(req.auth!.organizationId);const manage=req.auth!.permissions.has(PERMISSIONS.HANDOVER_MANAGE);const userId=req.auth!.userId;const acceptIds:string[]=[],rejectIds:string[]=[],evidenceIds:string[]=[];for(const row of all){if(row.status!=="CLOSED"&&(manage||row.fromUserId===userId||row.toUserId===userId))evidenceIds.push(row.id);if(row.status!=="PENDING")continue;if(row.toUserId===userId){acceptIds.push(row.id);rejectIds.push(row.id);continue;}if(manage){rejectIds.push(row.id);if(!row.toDriverId||!row.toUserId)acceptIds.push(row.id);}}return res.json({acceptIds,rejectIds,evidenceIds});});
+
+handoverPolicyRouter.post("/:id/decision",async(req,res,next)=>{if(req.body?.decision!=="ACCEPTED")return next();const id=typeof req.params.id==="string"?req.params.id:null;if(!id)return next();const row=(await prisma.$queryRaw<Row[]>`SELECT h."id",h."fromDriverId",h."toDriverId",h."status",fd."userId" AS "fromUserId",td."userId" AS "toUserId" FROM "VehicleHandover" h LEFT JOIN "Driver" fd ON fd."id"=h."fromDriverId" LEFT JOIN "Driver" td ON td."id"=h."toDriverId" WHERE h."organizationId"=${req.auth!.organizationId}::uuid AND h."id"=${id}::uuid`)[0];if(!row)return next();if(row.toUserId&&row.toUserId!==req.auth!.userId)return res.status(403).json({error:"This receiving driver has portal access and must personally accept the handover."});return next();});

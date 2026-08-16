@@ -26,6 +26,7 @@ import { safetyRouter } from "./modules/safety/routes.js";
 import { vendorsRouter } from "./modules/vendors/routes.js";
 import { lifecycleRouter } from "./modules/lifecycle/routes.js";
 import { notificationsRouter } from "./modules/notifications/routes.js";
+import { workspaceRouter } from "./modules/workspace/routes.js";
 import { requireAuth } from "./middleware/auth.js";
 
 export const apiRouter=Router();
@@ -58,3 +59,4 @@ apiRouter.use("/safety",safetyRouter);
 apiRouter.use("/vendors",vendorsRouter);
 apiRouter.use("/lifecycle",lifecycleRouter);
 apiRouter.use("/notifications",notificationsRouter);
+apiRouter.use("/workspace",workspaceRouter);

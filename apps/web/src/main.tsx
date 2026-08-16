@@ -10,4 +10,5 @@ import "./styles-v3.css";
 import "./styles-v4.css";
 import "./styles-v5.css";
 import "./styles-v6.css";
+import "./styles-v6-secure.css";
 ReactDOM.createRoot(document.getElementById("root")!).render(<React.StrictMode><BrowserRouter><AuthProvider><App/></AuthProvider></BrowserRouter></React.StrictMode>);

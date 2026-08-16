@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
@@ -101,10 +102,11 @@ workspaceRouter.get("/drivers/:id", requirePermission(PERMISSIONS.DRIVER_VIEW), 
     prisma.fuelTransaction.findMany({ where: { organizationId, driverId: id }, select: { id: true, requestNumber: true, status: true, requestedLitres: true, issuedLitres: true, totalCost: true, requestedAt: true, vehicle: { select: { registrationNumber: true } } }, orderBy: { requestedAt: "desc" }, take: 15 }),
     prisma.dispatchPlan.findMany({ where: { organizationId, driverId: id }, orderBy: { plannedDeparture: "desc" }, take: 10 })
   ]);
+  const { photoUrl, ...safeDriver } = driver;
   const totalDistance = trips.reduce((sum, row) => sum + (row.distanceKm ?? 0), 0);
   const completedTrips = trips.filter((row) => row.status === "CLOSED").length;
   const failedInspections = inspections.filter((row) => row.status === "FAILED").length;
-  return res.json({ driver, assignment, trips, score, safetyEvents, incidents, inspections, fuel, dispatches, summary: { totalDistanceKm: totalDistance, completedTrips, failedInspections, openIncidents: incidents.filter((row) => row.status !== "CLOSED").length, licenceDaysRemaining: Math.ceil((driver.licenceExpiry.getTime() - Date.now()) / dayMs) } });
+  return res.json({ driver: { ...safeDriver, photoAvailable: Boolean(photoUrl), photoEndpoint: photoUrl ? `/api/drivers/${driver.id}/photo?v=${driver.updatedAt.getTime()}` : null }, assignment, trips, score, safetyEvents, incidents, inspections, fuel, dispatches, summary: { totalDistanceKm: totalDistance, completedTrips, failedInspections, openIncidents: incidents.filter((row) => row.status !== "CLOSED").length, licenceDaysRemaining: Math.ceil((driver.licenceExpiry.getTime() - Date.now()) / dayMs) } });
 });
 
 workspaceRouter.get("/action-centre", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req, res) => {
@@ -155,7 +157,11 @@ workspaceRouter.patch("/settings", requirePermission(PERMISSIONS.SETTINGS_MANAGE
   const input = z.object({ name: z.string().min(2).max(160).optional(), currency: z.string().regex(/^[A-Z]{3}$/).optional(), timezone: z.string().min(3).max(80).optional() }).parse(req.body);
   const current = await prisma.organization.findUnique({ where: { id: req.auth!.organizationId } });
   if (!current) return res.status(404).json({ error: "Organization not found." });
-  const updated = await prisma.organization.update({ where: { id: current.id }, data: input });
+  const data: Prisma.OrganizationUpdateInput = {};
+  if (input.name !== undefined) data.name = input.name;
+  if (input.currency !== undefined) data.currency = input.currency;
+  if (input.timezone !== undefined) data.timezone = input.timezone;
+  const updated = await prisma.organization.update({ where: { id: current.id }, data });
   await audit(req, { action: "UPDATE", recordType: "ORGANIZATION_SETTINGS", recordId: current.id, oldValue: { name: current.name, currency: current.currency, timezone: current.timezone }, newValue: { name: updated.name, currency: updated.currency, timezone: updated.timezone } });
   return res.json(updated);
 });

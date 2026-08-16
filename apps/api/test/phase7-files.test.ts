@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { detectPrivateEvidenceMime } from "../src/lib/fileStorage.ts";
+import { detectPrivateEvidenceMime } from "../src/lib/imageFiles.ts";
 
 test("private evidence detects PDF signature",()=>{assert.equal(detectPrivateEvidenceMime(Buffer.from("%PDF-1.7\nexample")),"application/pdf");});
 test("private evidence detects JPEG signature",()=>{assert.equal(detectPrivateEvidenceMime(Buffer.from([0xff,0xd8,0xff,0x01,0x02])),"image/jpeg");});

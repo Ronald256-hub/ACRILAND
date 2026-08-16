@@ -10,8 +10,8 @@ import { assertTenantReferences } from "../../lib/tenantRefs.js";
 export const usersRouter = Router();
 
 usersRouter.get("/me", async (req, res) => {
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: req.auth!.userId }, include: { roles: { include: { role: true } }, branch: true, department: true } });
-  return res.json({ id: user.id, fullName: user.fullName, email: user.email, mustChangePassword: user.mustChangePassword, roles: user.roles.map((r) => r.role.name), permissions: [...req.auth!.permissions], branch: user.branch, department: user.department });
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: req.auth!.userId }, include: { roles: { include: { role: true } }, branch: true, department: true, driver: { select: { id: true } } } });
+  return res.json({ id: user.id, fullName: user.fullName, email: user.email, mustChangePassword: user.mustChangePassword, roles: user.roles.map((r) => r.role.name), permissions: [...req.auth!.permissions], branch: user.branch, department: user.department, driverId: user.driver?.id ?? null });
 });
 
 usersRouter.get("/roles", requirePermission(PERMISSIONS.USER_VIEW), async (req, res) => {

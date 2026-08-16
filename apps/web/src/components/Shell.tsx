@@ -1,131 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { useEffect,useMemo,useState } from "react";
+import { NavLink,Outlet,useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
-import { Icon, type IconName } from "./Icon";
+import { Icon,type IconName } from "./Icon";
 import { SearchPalette } from "./SearchPalette";
 
-type ManagementLink = { to: string; label: string; icon: IconName; permission: string };
-type DriverLink = { to: string; label: string; icon: IconName };
-
-const managementGroups: { label: string; links: ManagementLink[] }[] = [
-  { label: "Operations", links: [
-    { to: "/", label: "Command Centre", icon: "command", permission: "dashboard.view" },
-    { to: "/action-centre", label: "Action Centre", icon: "bell", permission: "dashboard.view" },
-    { to: "/vehicles", label: "Vehicles", icon: "vehicle", permission: "vehicle.view" },
-    { to: "/drivers", label: "Drivers", icon: "driver", permission: "driver.view" },
-    { to: "/assignments", label: "Assignments", icon: "assignment", permission: "assignment.view" },
-    { to: "/trips", label: "Trip Control", icon: "trip", permission: "trip.view" },
-    { to: "/dispatch", label: "Dispatch Control", icon: "route", permission: "dispatch.view" },
-    { to: "/inspections", label: "Inspections", icon: "inspection", permission: "inspection.view" }
-  ]},
-  { label: "Fleet health", links: [
-    { to: "/maintenance", label: "Maintenance", icon: "wrench", permission: "maintenance.view" },
-    { to: "/fuel", label: "Fuel Control", icon: "gauge", permission: "fuel.view" },
-    { to: "/compliance", label: "Alerts & Compliance", icon: "alert", permission: "compliance.view" },
-    { to: "/reports", label: "Reports", icon: "audit", permission: "report.view" }
-  ]},
-  { label: "Advanced operations", links: [
-    { to: "/tyres", label: "Tyres & Fitment", icon: "vehicle", permission: "tyre.view" },
-    { to: "/incidents", label: "Incidents", icon: "alert", permission: "incident.view" },
-    { to: "/inventory", label: "Inventory & Procurement", icon: "wrench", permission: "inventory.view" },
-    { to: "/preventive-maintenance", label: "PM Planning", icon: "calendar", permission: "pm.view" },
-    { to: "/operational-alerts", label: "Operational Alerts", icon: "bell", permission: "alert.view" },
-    { to: "/telemetry", label: "GPS & Telemetry", icon: "route", permission: "telemetry.view" }
-  ]},
-  { label: "Control & intelligence", links: [
-    { to: "/routes-geofences", label: "Routes & Geofences", icon: "route", permission: "geofence.view" },
-    { to: "/driver-safety", label: "Driver Safety", icon: "shield", permission: "safety.view" },
-    { to: "/vendors", label: "Vendors & Suppliers", icon: "users", permission: "vendor.view" },
-    { to: "/lifecycle", label: "Lifecycle & TCO", icon: "gauge", permission: "lifecycle.view" },
-    { to: "/notifications", label: "Notification Delivery", icon: "bell", permission: "notification.view" }
-  ]},
-  { label: "Administration", links: [
-    { to: "/settings", label: "Organization Settings", icon: "shield", permission: "dashboard.view" },
-    { to: "/users", label: "Users & Access", icon: "users", permission: "user.view" },
-    { to: "/branches", label: "Branches", icon: "branch", permission: "branch.view" },
-    { to: "/departments", label: "Departments", icon: "department", permission: "department.view" },
-    { to: "/audit", label: "Audit Trail", icon: "audit", permission: "audit.view" }
-  ]}
+type L={to:string;label:string;icon:IconName;permission:string};
+const groups:{label:string;links:L[]}[]=[
+ {label:"Operations",links:[["/","Command Centre","command","dashboard.view"],["/action-centre","Action Centre","bell","dashboard.view"],["/vehicles","Vehicles","vehicle","vehicle.view"],["/drivers","Drivers","driver","driver.view"],["/assignments","Assignments","assignment","assignment.view"],["/handovers","Vehicle Handovers","assignment","handover.view"],["/trips","Trip Control","trip","trip.view"],["/dispatch","Dispatch Control","route","dispatch.view"],["/inspections","Inspections","inspection","inspection.view"]].map(([to,label,icon,permission])=>({to:to!,label:label!,icon:icon! as IconName,permission:permission!}))},
+ {label:"Fleet health",links:[["/maintenance","Maintenance","wrench","maintenance.view"],["/fuel","Fuel Control","gauge","fuel.view"],["/compliance","Alerts & Compliance","alert","compliance.view"],["/reports","Reports","audit","report.view"]].map(([to,label,icon,permission])=>({to:to!,label:label!,icon:icon! as IconName,permission:permission!}))},
+ {label:"Advanced operations",links:[["/tyres","Tyres & Fitment","vehicle","tyre.view"],["/batteries","Battery Lifecycle","gauge","battery.view"],["/incidents","Incidents","alert","incident.view"],["/inventory","Inventory & Procurement","wrench","inventory.view"],["/preventive-maintenance","PM Planning","calendar","pm.view"],["/operational-alerts","Operational Alerts","bell","alert.view"],["/telemetry","GPS & Telemetry","route","telemetry.view"]].map(([to,label,icon,permission])=>({to:to!,label:label!,icon:icon! as IconName,permission:permission!}))},
+ {label:"Control & intelligence",links:[["/routes-geofences","Routes & Geofences","route","geofence.view"],["/driver-safety","Driver Safety","shield","safety.view"],["/vendors","Vendors & Suppliers","users","vendor.view"],["/lifecycle","Lifecycle & TCO","gauge","lifecycle.view"],["/notifications","Notification Delivery","bell","notification.view"],["/approvals","Approval Designer","shield","approval.view"]].map(([to,label,icon,permission])=>({to:to!,label:label!,icon:icon! as IconName,permission:permission!}))},
+ {label:"Administration",links:[["/documents","Document Vault","audit","document.view"],["/settings","Organization Settings","shield","dashboard.view"],["/users","Users & Access","users","user.view"],["/branches","Branches","branch","branch.view"],["/departments","Departments","department","department.view"],["/audit","Audit Trail","audit","audit.view"]].map(([to,label,icon,permission])=>({to:to!,label:label!,icon:icon! as IconName,permission:permission!}))}
 ];
-
-const driverLinks: DriverLink[] = [
-  { to: "/", label: "Driver Home", icon: "command" },
-  { to: "/assignments", label: "My Vehicle", icon: "vehicle" },
-  { to: "/trips", label: "My Trips", icon: "trip" },
-  { to: "/inspections", label: "Inspections", icon: "inspection" },
-  { to: "/fuel", label: "My Fuel", icon: "gauge" },
-  { to: "/incidents", label: "Report Incident", icon: "alert" },
-  { to: "/my-safety", label: "My Safety", icon: "shield" },
-  { to: "/my-profile", label: "My Profile", icon: "profile" }
+const driverLinks:{to:string;label:string;icon:IconName}[]=[
+ {to:"/",label:"Driver Home",icon:"command"},{to:"/assignments",label:"My Vehicle",icon:"vehicle"},{to:"/handovers",label:"My Handovers",icon:"assignment"},{to:"/trips",label:"My Trips",icon:"trip"},{to:"/inspections",label:"Inspections",icon:"inspection"},{to:"/fuel",label:"My Fuel",icon:"gauge"},{to:"/incidents",label:"Report Incident",icon:"alert"},{to:"/my-safety",label:"My Safety",icon:"shield"},{to:"/my-profile",label:"My Profile",icon:"profile"}
 ];
-
-const pageTitles: Record<string, { eyebrow: string; title: string }> = {
-  "/": { eyebrow: "ACRILAND LTD / OPERATIONS", title: "Fleet Command Centre" },
-  "/action-centre": { eyebrow: "MANAGEMENT / DECISIONS", title: "Fleet Action Centre" },
-  "/vehicles": { eyebrow: "FLEET CONTROL / ASSET REGISTER", title: "Vehicle Operations" },
-  "/drivers": { eyebrow: "PEOPLE / DRIVER READINESS", title: "Driver Operations" },
-  "/assignments": { eyebrow: "CONTROL / ACCOUNTABILITY", title: "Vehicle Assignments" },
-  "/trips": { eyebrow: "MOVEMENT / AUTHORIZATION", title: "Trip Control" },
-  "/dispatch": { eyebrow: "MOVEMENT / DISPATCH", title: "Dispatch Control" },
-  "/inspections": { eyebrow: "SAFETY / ROADWORTHINESS", title: "Vehicle Inspections" },
-  "/maintenance": { eyebrow: "FLEET HEALTH / WORKSHOP", title: "Maintenance & Workshop" },
-  "/fuel": { eyebrow: "FLEET HEALTH / FUEL GOVERNANCE", title: "Fuel Control" },
-  "/compliance": { eyebrow: "FLEET HEALTH / RISK", title: "Alerts & Compliance" },
-  "/reports": { eyebrow: "MANAGEMENT / ANALYTICS", title: "Fleet Reports" },
-  "/tyres": { eyebrow: "ADVANCED OPERATIONS / TYRE CONTROL", title: "Tyres & Fitment" },
-  "/incidents": { eyebrow: "SAFETY / INCIDENT RESPONSE", title: "Incidents & Accidents" },
-  "/inventory": { eyebrow: "WORKSHOP STORES / PROCUREMENT", title: "Inventory & Procurement" },
-  "/preventive-maintenance": { eyebrow: "FLEET HEALTH / PREVENTION", title: "Preventive Maintenance" },
-  "/operational-alerts": { eyebrow: "OPERATIONS / ESCALATION", title: "Operational Alerts" },
-  "/telemetry": { eyebrow: "CONNECTED FLEET / TELEMETRY", title: "GPS & Telemetry" },
-  "/routes-geofences": { eyebrow: "CONNECTED FLEET / ROUTE GOVERNANCE", title: "Routes & Geofences" },
-  "/driver-safety": { eyebrow: "PEOPLE / SAFETY INTELLIGENCE", title: "Driver Safety & Scoring" },
-  "/vendors": { eyebrow: "SUPPLY CHAIN / MASTER DATA", title: "Vendors & Suppliers" },
-  "/lifecycle": { eyebrow: "FINANCE / ASSET LIFECYCLE", title: "Lifecycle, TCO & Disposal" },
-  "/notifications": { eyebrow: "ESCALATION / DELIVERY", title: "Notification Delivery" },
-  "/settings": { eyebrow: "ADMINISTRATION / ORGANIZATION", title: "Organization Settings" },
-  "/users": { eyebrow: "ADMINISTRATION / ACCESS", title: "Users & Permissions" },
-  "/branches": { eyebrow: "ADMINISTRATION / STRUCTURE", title: "Branches" },
-  "/departments": { eyebrow: "ADMINISTRATION / STRUCTURE", title: "Departments" },
-  "/audit": { eyebrow: "SECURITY / GOVERNANCE", title: "Audit Trail" },
-  "/my-profile": { eyebrow: "DRIVER / ACCOUNT", title: "My Profile" },
-  "/my-safety": { eyebrow: "DRIVER / SAFETY", title: "My Safety Score" }
+const titles:Record<string,[string,string]>={
+ "/":["ACRILAND LTD / OPERATIONS","Fleet Command Centre"],"/action-centre":["MANAGEMENT / DECISIONS","Fleet Action Centre"],"/vehicles":["FLEET CONTROL / ASSET REGISTER","Vehicle Operations"],"/drivers":["PEOPLE / DRIVER READINESS","Driver Operations"],"/assignments":["CONTROL / ACCOUNTABILITY","Vehicle Assignments"],"/handovers":["CUSTODY / CONDITION RECORD","Vehicle Handovers"],"/trips":["MOVEMENT / AUTHORIZATION","Trip Control"],"/dispatch":["MOVEMENT / DISPATCH","Dispatch Control"],"/inspections":["SAFETY / ROADWORTHINESS","Vehicle Inspections"],"/maintenance":["FLEET HEALTH / WORKSHOP","Maintenance & Workshop"],"/fuel":["FLEET HEALTH / FUEL GOVERNANCE","Fuel Control"],"/compliance":["FLEET HEALTH / RISK","Alerts & Compliance"],"/reports":["MANAGEMENT / ANALYTICS","Fleet Reports"],"/tyres":["ADVANCED OPERATIONS / TYRE CONTROL","Tyres & Fitment"],"/batteries":["ADVANCED OPERATIONS / ELECTRICAL ASSETS","Battery Lifecycle"],"/incidents":["SAFETY / INCIDENT RESPONSE","Incidents & Accidents"],"/inventory":["WORKSHOP STORES / PROCUREMENT","Inventory & Procurement"],"/preventive-maintenance":["FLEET HEALTH / PREVENTION","Preventive Maintenance"],"/operational-alerts":["OPERATIONS / ESCALATION","Operational Alerts"],"/telemetry":["CONNECTED FLEET / TELEMETRY","GPS & Telemetry"],"/routes-geofences":["CONNECTED FLEET / ROUTE GOVERNANCE","Routes & Geofences"],"/driver-safety":["PEOPLE / SAFETY INTELLIGENCE","Driver Safety & Scoring"],"/vendors":["SUPPLY CHAIN / MASTER DATA","Vendors & Suppliers"],"/lifecycle":["FINANCE / ASSET LIFECYCLE","Lifecycle, TCO & Disposal"],"/notifications":["ESCALATION / DELIVERY","Notification Delivery"],"/approvals":["GOVERNANCE / CONFIGURABLE APPROVALS","Approval Workflow Designer"],"/documents":["ADMINISTRATION / PRIVATE FILES","Fleet Document Vault"],"/settings":["ADMINISTRATION / ORGANIZATION","Organization Settings"],"/users":["ADMINISTRATION / ACCESS","Users & Permissions"],"/branches":["ADMINISTRATION / STRUCTURE","Branches"],"/departments":["ADMINISTRATION / STRUCTURE","Departments"],"/audit":["SECURITY / GOVERNANCE","Audit Trail"],"/my-profile":["DRIVER / ACCOUNT","My Profile"],"/my-safety":["DRIVER / SAFETY","My Safety Score"]
 };
-
-export function Shell() {
-  const { me, logout } = useAuth();
-  const location = useLocation();
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const isDriver = me?.roles.includes("DRIVER") ?? false;
-  const current = pageTitles[location.pathname] ?? (location.pathname.startsWith("/vehicles/") ? { eyebrow: "FLEET CONTROL / VEHICLE 360", title: "Vehicle 360" } : location.pathname.startsWith("/drivers/") ? { eyebrow: "PEOPLE / DRIVER 360", title: "Driver 360" } : { eyebrow: "ACRILAND LTD", title: "Fleet Command" });
-  const initials = useMemo(() => (me?.fullName ?? "User").split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join(""), [me?.fullName]);
-
-  useEffect(() => { setMobileOpen(false); }, [location.pathname]);
-  useEffect(() => { const key=(event:KeyboardEvent)=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();setSearchOpen(true);}};window.addEventListener("keydown",key);return()=>window.removeEventListener("keydown",key);},[]);
-
-  return <div className="app-shell-v2">
-    {searchOpen && !isDriver && <SearchPalette onClose={() => setSearchOpen(false)} />}
-    {mobileOpen && <button className="sidebar-backdrop" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
-    <aside className={`sidebar-v2 ${mobileOpen ? "is-open" : ""}`}>
-      <div className="sidebar-brand-row">
-        <div className="brand-v2"><div className="brand-mark-v2">A</div><div><b>ACRILAND</b><span>Fleet Command Centre</span></div></div>
-        <button className="mobile-close" aria-label="Close navigation" onClick={() => setMobileOpen(false)}><Icon name="close" /></button>
-      </div>
-      <div className="sidebar-context"><span className="context-dot" /><div><b>{isDriver ? "Driver workspace" : "Operations workspace"}</b><span>{me?.branch?.name ?? "All authorized branches"}</span></div></div>
-      <nav className="sidebar-nav-v2">
-        {isDriver ? <div className="nav-group-v2"><span className="nav-group-title">My operations</span>{driverLinks.map((item) => <NavLink key={item.to} to={item.to} end={item.to === "/"} className={({ isActive }) => isActive ? "nav-link-v2 active" : "nav-link-v2"}><Icon name={item.icon} /><span>{item.label}</span></NavLink>)}</div> : managementGroups.map((group) => {
-          const available = group.links.filter((item) => me?.permissions.includes(item.permission));
-          if (!available.length) return null;
-          return <div className="nav-group-v2" key={group.label}><span className="nav-group-title">{group.label}</span>{available.map((item) => <NavLink key={item.to} to={item.to} end={item.to === "/"} className={({ isActive }) => isActive ? "nav-link-v2 active" : "nav-link-v2"}><Icon name={item.icon} /><span>{item.label}</span></NavLink>)}</div>;
-        })}
-      </nav>
-      <div className="sidebar-security"><Icon name="shield" /><div><b>Protected operations</b><span>Role-based access · audited actions</span></div></div>
-      <div className="sidebar-user-v2"><div className="user-avatar-v2">{initials || "U"}</div><div className="user-copy-v2"><b>{me?.fullName}</b><span>{me?.roles.join(" · ")}</span></div><button className="icon-button-v2 inverse" aria-label="Sign out" onClick={() => void logout()}><Icon name="logout" size={17} /></button></div>
-    </aside>
-    <main className="app-main-v2">
-      <header className="topbar-v2"><div className="topbar-left-v2"><button className="mobile-nav-toggle" aria-label="Open navigation" onClick={() => setMobileOpen(true)}><Icon name="menu" /></button><div><span className="topbar-eyebrow">{current.eyebrow}</span><h1>{isDriver && location.pathname === "/" ? "Driver Operations" : current.title}</h1></div></div><div className="topbar-actions-v2">{!isDriver&&<button className="command-search-trigger" aria-label="Search fleet command" onClick={()=>setSearchOpen(true)}><Icon name="search" size={16}/><span>Search fleet…</span><kbd>Ctrl K</kbd></button>}<NavLink className="icon-button-v2 notification-button" aria-label="Operational alerts" to={isDriver?"/":"/operational-alerts"}><Icon name="bell" size={17} /><span /></NavLink><div className="topbar-user-v2"><div className="user-avatar-v2 light">{initials || "U"}</div><div><b>{me?.fullName}</b><span>{me?.department?.name ?? me?.roles[0] ?? "Authorized user"}</span></div></div></div></header>
-      <div className="page-v2"><Outlet /></div>
-    </main>
-  </div>;
-}
+export function Shell(){const{me,logout}=useAuth();const location=useLocation();const[mobile,setMobile]=useState(false),[search,setSearch]=useState(false);const isDriver=me?.roles.includes("DRIVER")??false;const title=titles[location.pathname]??(location.pathname.startsWith("/vehicles/")?["FLEET CONTROL / VEHICLE 360","Vehicle 360"]:location.pathname.startsWith("/drivers/")?["PEOPLE / DRIVER 360","Driver 360"]:["ACRILAND LTD","Fleet Command"]);const initials=useMemo(()=>(me?.fullName??"User").split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]?.toUpperCase()).join(""),[me?.fullName]);useEffect(()=>setMobile(false),[location.pathname]);useEffect(()=>{const f=(e:KeyboardEvent)=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();setSearch(true);}};window.addEventListener("keydown",f);return()=>window.removeEventListener("keydown",f);},[]);const link=(x:{to:string;label:string;icon:IconName})=><NavLink key={x.to} to={x.to} end={x.to==="/"} className={({isActive})=>isActive?"nav-link-v2 active":"nav-link-v2"}><Icon name={x.icon}/><span>{x.label}</span></NavLink>;return <div className="app-shell-v2">{search&&!isDriver&&<SearchPalette onClose={()=>setSearch(false)}/>} {mobile&&<button className="sidebar-backdrop" aria-label="Close navigation" onClick={()=>setMobile(false)}/>}<aside className={`sidebar-v2 ${mobile?"is-open":""}`}><div className="sidebar-brand-row"><div className="brand-v2"><div className="brand-mark-v2">A</div><div><b>ACRILAND</b><span>Fleet Command Centre</span></div></div><button className="mobile-close" aria-label="Close navigation" onClick={()=>setMobile(false)}><Icon name="close"/></button></div><div className="sidebar-context"><span className="context-dot"/><div><b>{isDriver?"Driver workspace":"Operations workspace"}</b><span>{me?.branch?.name??"All authorized branches"}</span></div></div><nav className="sidebar-nav-v2">{isDriver?<div className="nav-group-v2"><span className="nav-group-title">My operations</span>{driverLinks.map(link)}</div>:groups.map(g=>{const xs=g.links.filter(x=>me?.permissions.includes(x.permission));return xs.length?<div className="nav-group-v2" key={g.label}><span className="nav-group-title">{g.label}</span>{xs.map(link)}</div>:null;})}</nav><div className="sidebar-security"><Icon name="shield"/><div><b>Protected operations</b><span>Role-based access · audited actions</span></div></div><div className="sidebar-user-v2"><div className="user-avatar-v2">{initials||"U"}</div><div className="user-copy-v2"><b>{me?.fullName}</b><span>{me?.roles.join(" · ")}</span></div><button className="icon-button-v2 inverse" aria-label="Sign out" onClick={()=>void logout()}><Icon name="logout" size={17}/></button></div></aside><main className="app-main-v2"><header className="topbar-v2"><div className="topbar-left-v2"><button className="mobile-nav-toggle" aria-label="Open navigation" onClick={()=>setMobile(true)}><Icon name="menu"/></button><div><span className="topbar-eyebrow">{title[0]}</span><h1>{isDriver&&location.pathname==="/"?"Driver Operations":title[1]}</h1></div></div><div className="topbar-actions-v2">{!isDriver&&<button className="command-search-trigger" aria-label="Search fleet command" onClick={()=>setSearch(true)}><Icon name="search" size={16}/><span>Search fleet…</span><kbd>Ctrl K</kbd></button>}<NavLink className="icon-button-v2 notification-button" aria-label="Operational alerts" to={isDriver?"/":"/operational-alerts"}><Icon name="bell" size={17}/><span/></NavLink><div className="topbar-user-v2"><div className="user-avatar-v2 light">{initials||"U"}</div><div><b>{me?.fullName}</b><span>{me?.department?.name??me?.roles[0]??"Authorized user"}</span></div></div></div></header><div className="page-v2"><Outlet/></div></main></div>}

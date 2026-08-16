@@ -31,6 +31,7 @@ import { batteriesRouter } from "./modules/batteries/routes.js";
 import { handoversRouter } from "./modules/handovers/routes.js";
 import { documentsRouter } from "./modules/documents/routes.js";
 import { approvalEngineRouter } from "./modules/approvalEngine/routes.js";
+import { recordHubRouter } from "./modules/recordHub/routes.js";
 import { requireAuth } from "./middleware/auth.js";
 
 export const apiRouter=Router();
@@ -68,3 +69,4 @@ apiRouter.use("/batteries",batteriesRouter);
 apiRouter.use("/handovers",handoversRouter);
 apiRouter.use("/documents",documentsRouter);
 apiRouter.use("/approval-engine",approvalEngineRouter);
+apiRouter.use("/record-hub",recordHubRouter);

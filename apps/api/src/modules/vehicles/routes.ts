@@ -55,7 +55,8 @@ vehiclesRouter.get("/", requirePermission(PERMISSIONS.VEHICLE_VIEW), async (req,
     prisma.vehicle.findMany({ where, skip: (page - 1) * take, take, orderBy: { registrationNumber: "asc" }, include: { branch: true, department: true } }),
     prisma.vehicle.count({ where })
   ]);
-  return res.json({ items, total, page, limit: take });
+  const ids=items.map(item=>item.id);const healthRows=ids.length?await prisma.$queryRaw<Array<{id:string;healthState:string;healthUpdatedAt:Date|null}>>`SELECT "id","healthState","healthUpdatedAt" FROM "Vehicle" WHERE "organizationId"=${req.auth!.organizationId}::uuid AND "id"=ANY(${ids}::uuid[])`:[];const healthMap=new Map(healthRows.map(row=>[row.id,row]));
+  return res.json({ items:items.map(item=>({...item,healthState:healthMap.get(item.id)?.healthState??"UNKNOWN",healthUpdatedAt:healthMap.get(item.id)?.healthUpdatedAt??null})), total, page, limit: take });
 });
 
 vehiclesRouter.post("/", requirePermission(PERMISSIONS.VEHICLE_CREATE), async (req, res) => {

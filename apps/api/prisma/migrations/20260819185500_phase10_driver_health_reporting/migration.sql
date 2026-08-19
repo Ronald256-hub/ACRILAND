@@ -56,3 +56,45 @@ CREATE INDEX "VehicleInspection_health_queue_idx" ON "VehicleInspection"("organi
 CREATE INDEX "VehicleInspection_vehicle_health_idx" ON "VehicleInspection"("vehicleId","managerStatus","createdAt" DESC);
 CREATE INDEX "InspectionEvidence_inspection_idx" ON "InspectionEvidence"("inspectionId","createdAt" DESC);
 CREATE INDEX "InspectionEvidence_org_idx" ON "InspectionEvidence"("organizationId","createdAt" DESC);
+
+-- Existing active organizations receive the daily driver health checklist as part of deployment.
+-- IDs are deterministic per organization so the migration is stable across environments.
+WITH organizations AS (
+  SELECT "id" AS "organizationId", md5("id"::text || ':driver-daily-vehicle-health')::uuid AS "templateId"
+  FROM "Organization"
+  WHERE "isActive" = TRUE
+)
+INSERT INTO "InspectionTemplate" ("id","organizationId","name","type","description","isActive","createdAt","updatedAt")
+SELECT "templateId","organizationId",'Driver Daily Vehicle Health Check','DAILY',
+       'Driver condition report covering vehicle behaviour, safety, load security and repair needs before or during daily operation.',
+       TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+FROM organizations
+ON CONFLICT ("organizationId","name","type") DO UPDATE SET
+  "description"=EXCLUDED."description","isActive"=TRUE,"updatedAt"=CURRENT_TIMESTAMP;
+
+WITH templates AS (
+  SELECT "id" AS "templateId"
+  FROM "InspectionTemplate"
+  WHERE "name"='Driver Daily Vehicle Health Check' AND "type"='DAILY'
+), checklist("code","label","isCritical","sortOrder") AS (
+  VALUES
+    ('ENGINE_BEHAVIOUR','Engine start, idle, power and unusual smoke/noise',FALSE,0),
+    ('DASH_WARNINGS','Dashboard warning lights and gauges',FALSE,1),
+    ('SERVICE_BRAKES','Service brake response and stopping performance',TRUE,2),
+    ('PARKING_BRAKE','Parking brake holding performance',TRUE,3),
+    ('STEERING','Steering response, free play and unusual vibration',TRUE,4),
+    ('TRANSMISSION','Clutch / gearbox / transmission behaviour',FALSE,5),
+    ('SUSPENSION','Suspension, ride behaviour and unusual knocks',FALSE,6),
+    ('TYRES_WHEELS','Tyres, wheels, wheel nuts and visible damage',TRUE,7),
+    ('LIGHTS_ELECTRICAL','Headlights, indicators, brake lights, horn and electricals',FALSE,8),
+    ('FLUIDS_LEAKS','Fuel, oil, coolant, brake-fluid or air leaks',TRUE,9),
+    ('GLASS_MIRRORS_BODY','Windscreen, mirrors, doors, body and visible damage',FALSE,10),
+    ('COUPLING_TRAILER','Fifth wheel / coupling / trailer connections',TRUE,11),
+    ('LOAD_SECURITY','Cargo restraint, load distribution and load security',TRUE,12),
+    ('SAFETY_EQUIPMENT','Fire extinguisher, warning triangles and first-aid equipment',FALSE,13)
+)
+INSERT INTO "InspectionTemplateItem" ("id","templateId","code","label","isCritical","sortOrder")
+SELECT md5(t."templateId"::text || ':' || c."code")::uuid,t."templateId",c."code",c."label",c."isCritical",c."sortOrder"
+FROM templates t CROSS JOIN checklist c
+ON CONFLICT ("templateId","code") DO UPDATE SET
+  "label"=EXCLUDED."label","isCritical"=EXCLUDED."isCritical","sortOrder"=EXCLUDED."sortOrder";

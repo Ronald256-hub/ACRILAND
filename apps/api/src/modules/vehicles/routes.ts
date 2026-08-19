@@ -55,7 +55,9 @@ vehiclesRouter.get("/", requirePermission(PERMISSIONS.VEHICLE_VIEW), async (req,
     prisma.vehicle.findMany({ where, skip: (page - 1) * take, take, orderBy: { registrationNumber: "asc" }, include: { branch: true, department: true } }),
     prisma.vehicle.count({ where })
   ]);
-  const ids=items.map(item=>item.id);const healthRows=ids.length?await prisma.$queryRaw<Array<{id:string;healthState:string;healthUpdatedAt:Date|null}>>`SELECT "id","healthState","healthUpdatedAt" FROM "Vehicle" WHERE "organizationId"=${req.auth!.organizationId}::uuid AND "id"=ANY(${ids}::uuid[])`:[];const healthMap=new Map(healthRows.map(row=>[row.id,row]));
+  const ids=items.map(item=>item.id);let healthRows:Array<{id:string;healthState:string;healthUpdatedAt:Date|null}>=[];
+  if(ids.length){const idList=Prisma.join(ids.map(id=>Prisma.sql`${id}::uuid`));healthRows=await prisma.$queryRaw(Prisma.sql`SELECT "id","healthState","healthUpdatedAt" FROM "Vehicle" WHERE "organizationId"=${req.auth!.organizationId}::uuid AND "id" IN (${idList})`);}
+  const healthMap=new Map(healthRows.map(row=>[row.id,row]));
   return res.json({ items:items.map(item=>({...item,healthState:healthMap.get(item.id)?.healthState??"UNKNOWN",healthUpdatedAt:healthMap.get(item.id)?.healthUpdatedAt??null})), total, page, limit: take });
 });
 

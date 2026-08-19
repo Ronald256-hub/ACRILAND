@@ -32,6 +32,9 @@ export async function saveDriverPhoto(input: { organizationId: string; driverId:
 export async function saveHandoverEvidence(input:{organizationId:string;handoverId:string;buffer:Buffer;mime:SupportedImageMime}){
   return savePrivate({relativeDirectory:path.posix.join("handover-evidence",input.organizationId,input.handoverId),extension:extensionForMime(input.mime),buffer:input.buffer});
 }
+export async function saveInspectionEvidence(input:{organizationId:string;inspectionId:string;buffer:Buffer;mime:SupportedImageMime}){
+  return savePrivate({relativeDirectory:path.posix.join("inspection-evidence",input.organizationId,input.inspectionId),extension:extensionForMime(input.mime),buffer:input.buffer});
+}
 export async function saveVaultDocument(input:{organizationId:string;entityType:string;entityId:string;buffer:Buffer;mime:PrivateEvidenceMime}){
   const extension=input.mime==="application/pdf"?"pdf":extensionForMime(input.mime);
   return savePrivate({relativeDirectory:path.posix.join("document-vault",input.organizationId,input.entityType.toLowerCase(),input.entityId),extension,buffer:input.buffer});

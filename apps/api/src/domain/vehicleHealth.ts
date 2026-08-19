@@ -1,7 +1,7 @@
 export type VehicleHealthState="UNKNOWN"|"HEALTHY"|"ATTENTION"|"CRITICAL";
 export type HealthInspectionResult={result:"PASS"|"ATTENTION_REQUIRED"|"FAIL"|"NOT_APPLICABLE";isCritical:boolean;labelSnapshot?:string};
 
-export function classifyVehicleHealth(input:{results:HealthInspectionResult[];driverCanContinue:boolean;loadState?:string|null;repairRequest?:string|null}):VehicleHealthState{
+export function classifyVehicleHealth(input:{results:HealthInspectionResult[];driverCanContinue:boolean;loadState?:string|null|undefined;repairRequest?:string|null|undefined}):VehicleHealthState{
   if(!input.results.length)return "UNKNOWN";
   const criticalFailure=input.results.some(item=>item.result==="FAIL"&&item.isCritical);
   if(criticalFailure||!input.driverCanContinue||input.loadState==="OVERLOAD_SUSPECTED")return "CRITICAL";
@@ -10,7 +10,7 @@ export function classifyVehicleHealth(input:{results:HealthInspectionResult[];dr
   return "HEALTHY";
 }
 
-export function shouldGroundFromHealth(input:{results:HealthInspectionResult[];driverCanContinue:boolean;loadState?:string|null}):boolean{
+export function shouldGroundFromHealth(input:{results:HealthInspectionResult[];driverCanContinue:boolean;loadState?:string|null|undefined}):boolean{
   return !input.driverCanContinue||input.loadState==="OVERLOAD_SUSPECTED"||input.results.some(item=>item.result==="FAIL"&&item.isCritical);
 }
 

@@ -3,6 +3,27 @@ import { PERMISSION_CATALOG, ROLE_TEMPLATES } from "../domain/permissions.js";
 
 const defaultInspectionTemplates = [
   {
+    name: "Driver Daily Vehicle Health Check",
+    type: "DAILY" as const,
+    description: "Driver condition report covering vehicle behaviour, safety, load security and repair needs before or during daily operation.",
+    items: [
+      ["ENGINE_BEHAVIOUR", "Engine start, idle, power and unusual smoke/noise", false],
+      ["DASH_WARNINGS", "Dashboard warning lights and gauges", false],
+      ["SERVICE_BRAKES", "Service brake response and stopping performance", true],
+      ["PARKING_BRAKE", "Parking brake holding performance", true],
+      ["STEERING", "Steering response, free play and unusual vibration", true],
+      ["TRANSMISSION", "Clutch / gearbox / transmission behaviour", false],
+      ["SUSPENSION", "Suspension, ride behaviour and unusual knocks", false],
+      ["TYRES_WHEELS", "Tyres, wheels, wheel nuts and visible damage", true],
+      ["LIGHTS_ELECTRICAL", "Headlights, indicators, brake lights, horn and electricals", false],
+      ["FLUIDS_LEAKS", "Fuel, oil, coolant, brake-fluid or air leaks", true],
+      ["GLASS_MIRRORS_BODY", "Windscreen, mirrors, doors, body and visible damage", false],
+      ["COUPLING_TRAILER", "Fifth wheel / coupling / trailer connections", true],
+      ["LOAD_SECURITY", "Cargo restraint, load distribution and load security", true],
+      ["SAFETY_EQUIPMENT", "Fire extinguisher, warning triangles and first-aid equipment", false]
+    ] as const
+  },
+  {
     name: "Standard Pre-Trip Inspection",
     type: "PRE_TRIP" as const,
     description: "Mandatory safety and roadworthiness inspection before an authorized trip.",

@@ -20,7 +20,7 @@ export function DriverHomePage(){
   if(loading)return <div className="loading-state-v2"><span className="loading-ring"/><b>Loading driver workspace…</b><span>Checking your vehicle and authorized movements.</span></div>;
 
   return <>
-    <section className="driver-mobile-hero-v2"><div className="driver-welcome-v2"><span className="eyebrow-v2">DRIVER OPERATIONS · MOBILE WORKSPACE</span><h2>Welcome, {me?.fullName}</h2><p>Only approved fleet movements appear here. Never move a truck until the required assignment, trip and inspection controls are complete.</p></div><div className={`driver-move-state-v2 ${moveBlocked?"blocked":"ready"}`}><span><Icon name={moveBlocked?"alert":"shield"} size={18}/></span><div><b>{moveBlocked?"Movement not cleared":"Vehicle control active"}</b><small>{moveBlocked?"Check assignment and vehicle status before any movement":"Follow the trip safety gate before departure"}</small></div></div></section>
+    <section className="driver-mobile-hero-v2"><div className="driver-welcome-v2"><span className="eyebrow-v2">DRIVER OPERATIONS · MOBILE WORKSPACE</span><h2>Welcome, {me?.fullName}</h2><p>Use Vehicle Health Check whenever you notice a change in how the truck behaves. Mileage, load condition, faults and condition photos go directly into Fleet Management follow-up.</p></div><div className={`driver-move-state-v2 ${moveBlocked?"blocked":"ready"}`}><span><Icon name={moveBlocked?"alert":"shield"} size={18}/></span><div><b>{moveBlocked?"Movement not cleared":"Vehicle control active"}</b><small>{moveBlocked?"Check assignment and vehicle status before any movement":"Follow the trip safety gate before departure"}</small></div></div></section>
     {error&&<div className="error-box">{error}</div>}
 
     <div className="driver-home-grid-v2">
@@ -31,7 +31,7 @@ export function DriverHomePage(){
     <section className="driver-action-grid-v2 driver-action-grid-v3">
       <Link to="/assignments"><span className="driver-action-icon-v2"><Icon name="vehicle"/></span><div><b>My Vehicle</b><small>Assignment, handover and vehicle status</small></div><Icon name="arrow" size={15}/></Link>
       <Link to="/trips"><span className="driver-action-icon-v2 blue"><Icon name="route"/></span><div><b>My Trips</b><small>Request, start, return and close movement</small></div><Icon name="arrow" size={15}/></Link>
-      <Link to="/inspections"><span className="driver-action-icon-v2 amber"><Icon name="inspection"/></span><div><b>Start Inspection</b><small>Daily, pre-trip and post-trip roadworthiness</small></div><Icon name="arrow" size={15}/></Link>
+      <Link to="/inspections"><span className="driver-action-icon-v2 amber"><Icon name="inspection"/></span><div><b>Check Vehicle Health</b><small>Checklist, mileage, load, behaviour, repairs and photos</small></div><Icon name="arrow" size={15}/></Link>
       <Link to="/fuel"><span className="driver-action-icon-v2 fuel"><Icon name="gauge"/></span><div><b>My Fuel</b><small>Request fuel for your assigned vehicle and track approval</small></div><Icon name="arrow" size={15}/></Link>
       <Link to="/my-profile"><span className="driver-action-icon-v2 violet"><Icon name="profile"/></span><div><b>My Profile</b><small>Personal details and profile photo</small></div><Icon name="arrow" size={15}/></Link>
     </section>

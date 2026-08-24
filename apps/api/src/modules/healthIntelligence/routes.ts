@@ -249,7 +249,8 @@ healthIntelligenceRouter.get("/summary", requirePermission(PERMISSIONS.HEALTH_IN
 
 healthIntelligenceRouter.patch("/policy", requirePermission(PERMISSIONS.SETTINGS_MANAGE), async (req, res) => {
   const input = policyInput.parse(req.body);
-  const current = await prisma.organization.findUniqueOrThrow({ where: { id: req.auth!.organizationId } });
+  const organizationId = req.auth!.organizationId;
+  const current = await prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
   const updated = await prisma.organization.update({
     where: { id: current.id },
     data: input,
@@ -260,6 +261,17 @@ healthIntelligenceRouter.patch("/policy", requirePermission(PERMISSIONS.SETTINGS
       healthRepeatWindowDays: true
     }
   });
+  const policy = toPolicy(updated);
+  const openReports = await prisma.vehicleInspection.findMany({
+    where: { organizationId, managerStatus: { not: "RESOLVED" }, healthState: { in: ["ATTENTION", "CRITICAL"] } },
+    select: { id: true, createdAt: true, healthState: true }
+  });
+  if (openReports.length) {
+    await prisma.$transaction(openReports.map((report) => prisma.operationalAlert.updateMany({
+      where: { organizationId, category: "DRIVER_VEHICLE_HEALTH", sourceType: "VEHICLE_INSPECTION", sourceId: report.id, status: { not: "CLOSED" } },
+      data: { dueAt: acknowledgementDueAt(report.createdAt, report.healthState as ManagedHealthState, policy) }
+    })));
+  }
   await audit(req, {
     action: "UPDATE",
     recordType: "VEHICLE_HEALTH_POLICY",
@@ -270,7 +282,7 @@ healthIntelligenceRouter.patch("/policy", requirePermission(PERMISSIONS.SETTINGS
       healthFreshnessHours: current.healthFreshnessHours,
       healthRepeatWindowDays: current.healthRepeatWindowDays
     },
-    newValue: updated
+    newValue: { ...updated, openAlertsRetargeted: openReports.length }
   });
-  return res.json(updated);
+  return res.json({ ...updated, openAlertsRetargeted: openReports.length });
 });

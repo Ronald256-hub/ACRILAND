@@ -292,29 +292,33 @@ enum NotificationDeliveryStatus {
 }
 
 model Organization {
-  id                  String                 @id @default(uuid()) @db.Uuid
-  name                String
-  slug                String                 @unique
-  currency            String                 @default("UGX")
-  timezone            String                 @default("Africa/Kampala")
-  isActive            Boolean                @default(true)
-  createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @updatedAt
-  branches            Branch[]
-  departments         Department[]
-  users               User[]
-  roles               Role[]
-  drivers             Driver[]
-  vehicles            Vehicle[]
-  auditLogs           AuditLog[]
-  loginEvents         LoginEvent[]
-  assignments         VehicleAssignment[]
-  trips               Trip[]
-  inspectionTemplates InspectionTemplate[]
-  inspections         VehicleInspection[]
-  maintenanceOrders   MaintenanceWorkOrder[]
-  fuelTransactions    FuelTransaction[]
-  complianceDocuments ComplianceDocument[]
+  id                       String                 @id @default(uuid()) @db.Uuid
+  name                     String
+  slug                     String                 @unique
+  currency                 String                 @default("UGX")
+  timezone                 String                 @default("Africa/Kampala")
+  healthCriticalAckMinutes Int                    @default(30)
+  healthAttentionAckHours  Int                    @default(8)
+  healthFreshnessHours     Int                    @default(24)
+  healthRepeatWindowDays   Int                    @default(30)
+  isActive                 Boolean                @default(true)
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  branches                 Branch[]
+  departments              Department[]
+  users                    User[]
+  roles                    Role[]
+  drivers                  Driver[]
+  vehicles                 Vehicle[]
+  auditLogs                AuditLog[]
+  loginEvents              LoginEvent[]
+  assignments              VehicleAssignment[]
+  trips                    Trip[]
+  inspectionTemplates      InspectionTemplate[]
+  inspections              VehicleInspection[]
+  maintenanceOrders        MaintenanceWorkOrder[]
+  fuelTransactions         FuelTransaction[]
+  complianceDocuments      ComplianceDocument[]
 }
 
 model Branch {
@@ -499,7 +503,7 @@ model Driver {
   emergencyContact String?
   status           DriverStatus      @default(ACTIVE)
   photoUrl         String?
-  notes            String?
+  notes             String?
   archivedAt       DateTime?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -534,62 +538,66 @@ model DriverLicence {
 }
 
 model Vehicle {
-  id                  String                 @id @default(uuid()) @db.Uuid
-  organizationId      String                 @db.Uuid
-  branchId            String?                @db.Uuid
-  departmentId        String?                @db.Uuid
-  registrationNumber  String
-  fleetNumber         String?
-  vin                 String
-  engineNumber        String?
-  make                String
-  model               String
-  variant             String?
-  category            String
-  bodyType            String?
-  manufacturingYear   Int
-  registrationYear    Int?
-  fuelType            FuelType
-  transmission        TransmissionType?
-  engineCapacityCc    Int?
-  tankCapacityLitres  Decimal?               @db.Decimal(10, 2)
-  grossWeightKg       Decimal?               @db.Decimal(12, 2)
-  colour              String?
-  costCentre          String?
-  acquisitionMethod   String?
-  ownershipType       String?
-  purchaseDate        DateTime?
-  purchasePrice       Decimal?               @db.Decimal(18, 2)
-  supplier            String?
-  warrantyStart       DateTime?
-  warrantyEnd         DateTime?
-  warrantyMileageKm   Int?
-  initialOdometerKm   Int                     @default(0)
-  currentOdometerKm   Int                     @default(0)
-  currentLocation     String?
-  imageUrl            String?
-  notes               String?
-  status              VehicleStatus           @default(AVAILABLE)
-  lastServiceAt       DateTime?
-  nextServiceDueAt    DateTime?
-  nextServiceDueKm    Int?
-  serviceIntervalKm   Int?
-  archivedAt          DateTime?
-  createdAt           DateTime                @default(now())
-  updatedAt           DateTime                @updatedAt
-  organization        Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  branch              Branch?                 @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  department          Department?             @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  assignments         VehicleAssignment[]
-  trips               Trip[]
-  inspections         VehicleInspection[]
-  maintenanceOrders   MaintenanceWorkOrder[]
-  fuelTransactions    FuelTransaction[]
-  complianceDocuments ComplianceDocument[]
+  id                       String                 @id @default(uuid()) @db.Uuid
+  organizationId           String                 @db.Uuid
+  branchId                 String?                @db.Uuid
+  departmentId             String?                @db.Uuid
+  registrationNumber       String
+  fleetNumber              String?
+  vin                      String
+  engineNumber             String?
+  make                     String
+  model                    String
+  variant                  String?
+  category                 String
+  bodyType                 String?
+  manufacturingYear        Int
+  registrationYear         Int?
+  fuelType                 FuelType
+  transmission             TransmissionType?
+  engineCapacityCc         Int?
+  tankCapacityLitres       Decimal?               @db.Decimal(10, 2)
+  grossWeightKg            Decimal?               @db.Decimal(12, 2)
+  colour                   String?
+  costCentre               String?
+  acquisitionMethod        String?
+  ownershipType            String?
+  purchaseDate             DateTime?
+  purchasePrice            Decimal?               @db.Decimal(18, 2)
+  supplier                 String?
+  warrantyStart            DateTime?
+  warrantyEnd              DateTime?
+  warrantyMileageKm        Int?
+  initialOdometerKm        Int                     @default(0)
+  currentOdometerKm        Int                     @default(0)
+  currentLocation          String?
+  imageUrl                 String?
+  notes                    String?
+  status                   VehicleStatus           @default(AVAILABLE)
+  lastServiceAt            DateTime?
+  nextServiceDueAt         DateTime?
+  nextServiceDueKm         Int?
+  serviceIntervalKm        Int?
+  healthState              String                  @default("UNKNOWN")
+  healthUpdatedAt          DateTime?
+  healthSourceInspectionId String?                 @db.Uuid
+  archivedAt               DateTime?
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+  organization             Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  branch                   Branch?                 @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  department               Department?             @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  assignments              VehicleAssignment[]
+  trips                    Trip[]
+  inspections              VehicleInspection[]
+  maintenanceOrders        MaintenanceWorkOrder[]
+  fuelTransactions         FuelTransaction[]
+  complianceDocuments      ComplianceDocument[]
 
   @@unique([organizationId, registrationNumber])
   @@unique([organizationId, vin])
   @@index([organizationId, status])
+  @@index([organizationId, healthState])
   @@index([organizationId, branchId])
   @@index([organizationId, currentOdometerKm])
 }
@@ -654,7 +662,7 @@ model Trip {
   updatedAt           DateTime           @updatedAt
   organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   vehicle             Vehicle?           @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
-  driver              Driver?            @relation(fields: [driverId], references: [id], onDelete: Restrict)
+  driver              Driver?            @relation(fields: [driverId], references: [id], onDelete: SetNull)
   assignment          VehicleAssignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
   requester           User               @relation("TripRequester", fields: [requesterUserId], references: [id], onDelete: Restrict)
   approvedBy          User?              @relation("TripApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
@@ -720,29 +728,45 @@ model InspectionTemplateItem {
 }
 
 model VehicleInspection {
-  id                String              @id @default(uuid()) @db.Uuid
-  organizationId    String              @db.Uuid
-  vehicleId         String              @db.Uuid
-  driverId          String?             @db.Uuid
-  tripId            String?             @db.Uuid
-  templateId        String?             @db.Uuid
-  type              InspectionType
-  odometerKm        Int
-  status            InspectionStatus    @default(IN_PROGRESS)
-  notes             String?
-  performedByUserId String              @db.Uuid
-  completedAt       DateTime?
-  createdAt         DateTime            @default(now())
-  organization      Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  vehicle           Vehicle             @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
-  driver            Driver?             @relation(fields: [driverId], references: [id], onDelete: SetNull)
-  trip              Trip?               @relation(fields: [tripId], references: [id], onDelete: SetNull)
-  template          InspectionTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  performedBy       User                @relation("InspectionPerformer", fields: [performedByUserId], references: [id], onDelete: Restrict)
-  results           InspectionResult[]
+  id                   String              @id @default(uuid()) @db.Uuid
+  organizationId       String              @db.Uuid
+  vehicleId            String              @db.Uuid
+  driverId             String?             @db.Uuid
+  tripId               String?             @db.Uuid
+  templateId           String?             @db.Uuid
+  type                 InspectionType
+  odometerKm           Int
+  status               InspectionStatus    @default(IN_PROGRESS)
+  notes                String?
+  performedByUserId    String              @db.Uuid
+  completedAt          DateTime?
+  createdAt            DateTime            @default(now())
+  loadState            String?
+  currentLocation      String?
+  vehicleBehavior      String?
+  repairRequest        String?
+  driverCanContinue    Boolean?
+  healthState          String              @default("UNKNOWN")
+  managerStatus        String              @default("RESOLVED")
+  managerNote          String?
+  acknowledgedByUserId String?             @db.Uuid
+  acknowledgedAt       DateTime?
+  resolvedByUserId     String?             @db.Uuid
+  resolvedAt           DateTime?
+  workOrderId          String?             @db.Uuid
+  organization         Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  vehicle              Vehicle             @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  driver               Driver?             @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  trip                 Trip?               @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  template             InspectionTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  performedBy          User                @relation("InspectionPerformer", fields: [performedByUserId], references: [id], onDelete: Restrict)
+  results              InspectionResult[]
+  evidence             InspectionEvidence[]
 
   @@index([organizationId, type, createdAt])
+  @@index([organizationId, managerStatus, healthState, createdAt])
   @@index([vehicleId, createdAt])
+  @@index([vehicleId, managerStatus, createdAt])
   @@index([tripId, type])
 }
 
@@ -760,6 +784,22 @@ model InspectionResult {
 
   @@unique([inspectionId, templateItemId])
   @@index([inspectionId, result])
+}
+
+model InspectionEvidence {
+  id               String            @id @default(uuid()) @db.Uuid
+  organizationId   String            @db.Uuid
+  inspectionId     String            @db.Uuid
+  storageLocator   String
+  mimeType         String
+  originalName     String
+  sizeBytes        Int
+  uploadedByUserId String            @db.Uuid
+  createdAt        DateTime          @default(now())
+  inspection       VehicleInspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+
+  @@index([inspectionId, createdAt])
+  @@index([organizationId, createdAt])
 }
 
 model MaintenanceWorkOrder {
@@ -867,25 +907,25 @@ model ComplianceDocument {
 }
 
 model TyreAsset {
-  id                    String     @id @default(uuid()) @db.Uuid
-  organizationId        String     @db.Uuid
-  serialNumber          String
-  brand                 String
-  size                  String
-  status                TyreStatus @default(IN_STOCK)
-  currentVehicleId      String?    @db.Uuid
-  position              String?
-  purchaseDate          DateTime?
-  purchaseCost          Decimal?   @db.Decimal(18, 2)
-  initialTreadDepthMm   Decimal?   @db.Decimal(6, 2)
-  currentTreadDepthMm   Decimal?   @db.Decimal(6, 2)
-  fittedAt              DateTime?
-  removedAt             DateTime?
-  mileageAtFitKm        Int?
-  mileageAtRemovalKm    Int?
-  notes                 String?
-  createdAt             DateTime   @default(now())
-  updatedAt             DateTime   @updatedAt
+  id                   String     @id @default(uuid()) @db.Uuid
+  organizationId       String     @db.Uuid
+  serialNumber         String
+  brand                String
+  size                 String
+  status               TyreStatus @default(IN_STOCK)
+  currentVehicleId     String?    @db.Uuid
+  position             String?
+  purchaseDate         DateTime?
+  purchaseCost         Decimal?   @db.Decimal(18, 2)
+  initialTreadDepthMm  Decimal?   @db.Decimal(6, 2)
+  currentTreadDepthMm  Decimal?   @db.Decimal(6, 2)
+  fittedAt             DateTime?
+  removedAt            DateTime?
+  mileageAtFitKm       Int?
+  mileageAtRemovalKm   Int?
+  notes                String?
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
 
   @@unique([organizationId, serialNumber])
   @@index([organizationId, status])
@@ -893,46 +933,46 @@ model TyreAsset {
 }
 
 model TyreFitment {
-  id                    String   @id @default(uuid()) @db.Uuid
-  organizationId        String   @db.Uuid
-  tyreId                String   @db.Uuid
-  vehicleId             String   @db.Uuid
-  position              String
-  fittedAt              DateTime @default(now())
-  removedAt             DateTime?
-  odometerKmAtFit       Int
-  odometerKmAtRemoval   Int?
-  removalReason         String?
-  performedByUserId     String   @db.Uuid
-  createdAt             DateTime @default(now())
+  id                  String   @id @default(uuid()) @db.Uuid
+  organizationId      String   @db.Uuid
+  tyreId              String   @db.Uuid
+  vehicleId           String   @db.Uuid
+  position            String
+  fittedAt            DateTime @default(now())
+  removedAt           DateTime?
+  odometerKmAtFit     Int
+  odometerKmAtRemoval Int?
+  removalReason       String?
+  performedByUserId   String   @db.Uuid
+  createdAt           DateTime @default(now())
 
   @@index([organizationId, vehicleId, fittedAt])
   @@index([tyreId, fittedAt])
 }
 
 model IncidentReport {
-  id                    String           @id @default(uuid()) @db.Uuid
-  organizationId        String           @db.Uuid
-  incidentNumber        String
-  type                  IncidentType
-  severity              IncidentSeverity @default(MEDIUM)
-  status                IncidentStatus   @default(OPEN)
-  vehicleId             String?          @db.Uuid
-  driverId              String?          @db.Uuid
-  tripId                String?          @db.Uuid
-  reportedByUserId      String           @db.Uuid
-  occurredAt            DateTime
-  location              String
-  description           String
-  injuriesReported      Boolean          @default(false)
-  policeReference       String?
-  insuranceReference    String?
-  estimatedLoss         Decimal?         @db.Decimal(18, 2)
-  rootCause             String?
-  correctiveAction      String?
-  closedAt              DateTime?
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @updatedAt
+  id                 String           @id @default(uuid()) @db.Uuid
+  organizationId     String           @db.Uuid
+  incidentNumber     String
+  type               IncidentType
+  severity           IncidentSeverity @default(MEDIUM)
+  status             IncidentStatus   @default(OPEN)
+  vehicleId          String?          @db.Uuid
+  driverId           String?          @db.Uuid
+  tripId             String?          @db.Uuid
+  reportedByUserId   String           @db.Uuid
+  occurredAt         DateTime
+  location           String
+  description        String
+  injuriesReported   Boolean          @default(false)
+  policeReference    String?
+  insuranceReference String?
+  estimatedLoss      Decimal?         @db.Decimal(18, 2)
+  rootCause          String?
+  correctiveAction   String?
+  closedAt           DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   @@unique([organizationId, incidentNumber])
   @@index([organizationId, status, severity])
@@ -941,61 +981,61 @@ model IncidentReport {
 }
 
 model InventoryItem {
-  id                    String   @id @default(uuid()) @db.Uuid
-  organizationId        String   @db.Uuid
-  sku                   String
-  name                  String
-  category              String
-  unit                  String   @default("EA")
-  quantityOnHand        Decimal  @default(0) @db.Decimal(14, 3)
-  reorderLevel          Decimal  @default(0) @db.Decimal(14, 3)
-  unitCost              Decimal? @db.Decimal(18, 2)
-  preferredSupplier     String?
-  isActive              Boolean  @default(true)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                String   @id @default(uuid()) @db.Uuid
+  organizationId    String   @db.Uuid
+  sku               String
+  name              String
+  category          String
+  unit              String   @default("EA")
+  quantityOnHand    Decimal  @default(0) @db.Decimal(14, 3)
+  reorderLevel      Decimal  @default(0) @db.Decimal(14, 3)
+  unitCost          Decimal? @db.Decimal(18, 2)
+  preferredSupplier String?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@unique([organizationId, sku])
   @@index([organizationId, isActive])
 }
 
 model StockMovement {
-  id                    String            @id @default(uuid()) @db.Uuid
-  organizationId        String            @db.Uuid
-  itemId                String            @db.Uuid
-  type                  StockMovementType
-  quantity              Decimal           @db.Decimal(14, 3)
-  unitCost              Decimal?          @db.Decimal(18, 2)
-  reference             String?
-  workOrderId           String?           @db.Uuid
-  performedByUserId     String            @db.Uuid
-  notes                 String?
-  createdAt             DateTime          @default(now())
+  id                String            @id @default(uuid()) @db.Uuid
+  organizationId    String            @db.Uuid
+  itemId            String            @db.Uuid
+  type              StockMovementType
+  quantity          Decimal           @db.Decimal(14, 3)
+  unitCost          Decimal?          @db.Decimal(18, 2)
+  reference         String?
+  workOrderId       String?           @db.Uuid
+  performedByUserId String            @db.Uuid
+  notes             String?
+  createdAt         DateTime          @default(now())
 
   @@index([organizationId, createdAt])
   @@index([itemId, createdAt])
 }
 
 model ProcurementRequest {
-  id                    String            @id @default(uuid()) @db.Uuid
-  organizationId        String            @db.Uuid
-  requestNumber         String
-  itemId                String            @db.Uuid
-  requestedQuantity     Decimal           @db.Decimal(14, 3)
-  status                ProcurementStatus @default(REQUESTED)
-  requestedByUserId     String            @db.Uuid
-  approvedByUserId      String?           @db.Uuid
-  supplier              String?
-  unitPrice             Decimal?          @db.Decimal(18, 2)
-  totalCost             Decimal?          @db.Decimal(18, 2)
-  neededBy              DateTime?
-  justification         String
-  rejectionReason       String?
-  approvedAt            DateTime?
-  orderedAt             DateTime?
-  receivedAt            DateTime?
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt
+  id                String            @id @default(uuid()) @db.Uuid
+  organizationId    String            @db.Uuid
+  requestNumber     String
+  itemId            String            @db.Uuid
+  requestedQuantity Decimal           @db.Decimal(14, 3)
+  status            ProcurementStatus @default(REQUESTED)
+  requestedByUserId String            @db.Uuid
+  approvedByUserId  String?           @db.Uuid
+  supplier          String?
+  unitPrice         Decimal?          @db.Decimal(18, 2)
+  totalCost         Decimal?          @db.Decimal(18, 2)
+  neededBy          DateTime?
+  justification     String
+  rejectionReason   String?
+  approvedAt        DateTime?
+  orderedAt         DateTime?
+  receivedAt        DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
   @@unique([organizationId, requestNumber])
   @@index([organizationId, status, createdAt])
@@ -1091,23 +1131,23 @@ model RoutePlan {
 }
 
 model Geofence {
-  id                String          @id @default(uuid()) @db.Uuid
-  organizationId    String          @db.Uuid
-  name              String
-  shape             GeofenceShape
-  policy            GeofencePolicy  @default(MONITOR)
-  centerLatitude    Decimal?        @db.Decimal(10, 7)
-  centerLongitude   Decimal?        @db.Decimal(10, 7)
-  radiusMetres      Int?
-  polygon           Json?
-  speedLimitKph     Int?
-  alertOnEntry      Boolean         @default(false)
-  alertOnExit       Boolean         @default(false)
-  isActive          Boolean         @default(true)
-  notes             String?
-  createdByUserId   String          @db.Uuid
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  id              String         @id @default(uuid()) @db.Uuid
+  organizationId  String         @db.Uuid
+  name            String
+  shape           GeofenceShape
+  policy          GeofencePolicy @default(MONITOR)
+  centerLatitude  Decimal?       @db.Decimal(10, 7)
+  centerLongitude Decimal?       @db.Decimal(10, 7)
+  radiusMetres    Int?
+  polygon         Json?
+  speedLimitKph   Int?
+  alertOnEntry    Boolean        @default(false)
+  alertOnExit     Boolean        @default(false)
+  isActive        Boolean        @default(true)
+  notes           String?
+  createdByUserId String         @db.Uuid
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@unique([organizationId, name])
   @@index([organizationId, isActive])
@@ -1193,19 +1233,19 @@ model DriverSafetyEvent {
 }
 
 model DriverScoreSnapshot {
-  id                  String   @id @default(uuid()) @db.Uuid
-  organizationId      String   @db.Uuid
-  driverId            String   @db.Uuid
-  periodStart         DateTime
-  periodEnd           DateTime
-  score               Int
-  safetyEventPoints   Int      @default(0)
-  incidentPoints      Int      @default(0)
-  inspectionPoints    Int      @default(0)
-  riskBand            String
-  details             Json?
-  calculatedByUserId  String   @db.Uuid
-  calculatedAt        DateTime @default(now())
+  id                 String   @id @default(uuid()) @db.Uuid
+  organizationId     String   @db.Uuid
+  driverId           String   @db.Uuid
+  periodStart        DateTime
+  periodEnd          DateTime
+  score              Int
+  safetyEventPoints  Int      @default(0)
+  incidentPoints     Int      @default(0)
+  inspectionPoints   Int      @default(0)
+  riskBand           String
+  details            Json?
+  calculatedByUserId String   @db.Uuid
+  calculatedAt       DateTime @default(now())
 
   @@unique([organizationId, driverId, periodStart, periodEnd])
   @@index([organizationId, calculatedAt])
@@ -1262,7 +1302,7 @@ model VehicleDisposal {
   requestedByUserId String         @db.Uuid
   approvedByUserId  String?        @db.Uuid
   disposalMethod    String
-  reason            String
+  reason             String
   estimatedProceeds Decimal?       @db.Decimal(18, 2)
   actualProceeds    Decimal?       @db.Decimal(18, 2)
   buyer             String?

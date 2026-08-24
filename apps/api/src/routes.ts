@@ -33,6 +33,7 @@ import { handoversRouter } from "./modules/handovers/routes.js";
 import { documentsRouter } from "./modules/documents/routes.js";
 import { approvalEngineRouter } from "./modules/approvalEngine/routes.js";
 import { recordHubRouter } from "./modules/recordHub/routes.js";
+import { healthIntelligenceRouter } from "./modules/healthIntelligence/routes.js";
 import { requireAuth } from "./middleware/auth.js";
 
 export const apiRouter=Router();
@@ -49,6 +50,7 @@ apiRouter.use("/audit",auditRouter);
 apiRouter.use("/assignments",assignmentsRouter);
 apiRouter.use("/trips",tripsRouter);
 apiRouter.use("/inspections",inspectionsRouter);
+apiRouter.use("/health-intelligence",healthIntelligenceRouter);
 apiRouter.use("/maintenance",maintenanceRouter);
 apiRouter.use("/fuel",fuelRouter);
 apiRouter.use("/compliance",complianceRouter);

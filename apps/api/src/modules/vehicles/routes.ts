@@ -149,3 +149,16 @@ vehiclesRouter.patch("/:id", requirePermission(PERMISSIONS.VEHICLE_EDIT), async 
   });
   return res.json(updated);
 });
+
+vehiclesRouter.post("/:id/archive", requirePermission(PERMISSIONS.VEHICLE_EDIT), async (req, res) => {
+  const input = z.object({ reason: z.string().min(3).max(500) }).parse(req.body);
+  const vehicleId = routeVehicleId(req.params.id);
+  if (!vehicleId) return res.status(400).json({ error: "Invalid vehicle id." });
+  const current = await prisma.vehicle.findFirst({ where: { id: vehicleId, organizationId: req.auth!.organizationId, archivedAt: null } });
+  if (!current) return res.status(404).json({ error: "Vehicle not found." });
+  if (current.status !== "DISPOSED") return res.status(409).json({ error: "Only a vehicle already marked DISPOSED can be archived from the active fleet register." });
+
+  const updated = await prisma.vehicle.update({ where: { id: current.id }, data: { archivedAt: new Date() } });
+  await audit(req, { action: "ARCHIVE", recordType: "VEHICLE", recordId: current.id, oldValue: current, newValue: updated, reason: input.reason });
+  return res.json({ ok: true, vehicle: updated });
+});

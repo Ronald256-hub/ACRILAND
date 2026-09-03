@@ -28,6 +28,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
       - run: npm install
       - run: npm run db:generate
       - run: npm run db:deploy
@@ -35,3 +36,5 @@ jobs:
       - run: npm test
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run build
+      - name: Build production Docker image
+        run: docker build --tag acriland-fleet:ci .

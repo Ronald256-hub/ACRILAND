@@ -19,7 +19,7 @@ import "./styles-v11.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <BrowserRouter basename={import.meta.env.BASE_URL}>
+    <BrowserRouter>
       <AuthProvider>
         <App />
       </AuthProvider>
@@ -29,8 +29,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
   window.addEventListener("load", () => {
-    const swUrl = `${import.meta.env.BASE_URL}sw.js`;
-    void navigator.serviceWorker.register(swUrl).catch(() => {
+    void navigator.serviceWorker.register("/sw.js").catch(() => {
       // App functionality remains available when service workers are unsupported or blocked.
     });
   });

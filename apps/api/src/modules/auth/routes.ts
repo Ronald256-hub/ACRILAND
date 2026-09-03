@@ -13,14 +13,14 @@ export const authRouter = Router();
 const loginLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 20, standardHeaders: true, legacyHeaders: false });
 const cookieOptions = { httpOnly: true, sameSite: "strict" as const, secure: env.NODE_ENV === "production", path: "/api/auth" };
 
-const loginSchema = z.object({ organizationSlug: z.string().min(2).max(80), email: z.string().email(), password: z.string().min(8) });
+const loginSchema = z.object({ organizationSlug: z.string().min(2).max(80), email: z.string().email(), password: z.string().min(8).max(128) });
 
 authRouter.post("/login", loginLimiter, async (req, res) => {
   const input = loginSchema.parse(req.body);
   const org = await prisma.organization.findUnique({ where: { slug: input.organizationSlug.toLowerCase() } });
   const user = org ? await prisma.user.findUnique({ where: { organizationId_email: { organizationId: org.id, email: input.email.toLowerCase() } } }) : null;
   const baseEvent = { organizationId: org?.id ?? null, userId: user?.id ?? null, email: input.email.toLowerCase(), ipAddress: req.ip ?? null, userAgent: req.get("user-agent") ?? null };
-  if (!org || !org.isActive || !user || user.archivedAt || user.status === "DISABLED") {
+  if (!org || !org.isActive || !user || user.archivedAt || (user.status !== "ACTIVE" && !(user.status === "LOCKED" && (!user.lockedUntil || user.lockedUntil <= new Date())))) {
     await prisma.loginEvent.create({ data: { ...baseEvent, success: false, reason: "INVALID_CREDENTIALS" } });
     return res.status(401).json({ error: "Invalid organization, email or password." });
   }
@@ -67,7 +67,7 @@ authRouter.post("/logout", requireAuth, async (req, res) => {
 });
 
 authRouter.post("/change-password", requireAuth, async (req, res) => {
-  const input = z.object({ currentPassword: z.string().min(8), newPassword: z.string().min(12).max(128) }).parse(req.body);
+  const input = z.object({ currentPassword: z.string().min(8).max(128), newPassword: z.string().min(15).max(128) }).parse(req.body);
   const user = await prisma.user.findUniqueOrThrow({ where: { id: req.auth!.userId } });
   if (!(await verifyPassword(input.currentPassword, user.passwordHash))) return res.status(400).json({ error: "Current password is incorrect." });
   const passwordHash = await hashPassword(input.newPassword);
@@ -91,7 +91,7 @@ authRouter.post("/forgot-password", loginLimiter, async (req, res) => {
 });
 
 authRouter.post("/reset-password", async (req, res) => {
-  const input = z.object({ token: z.string().min(30), newPassword: z.string().min(12).max(128) }).parse(req.body);
+  const input = z.object({ token: z.string().min(30), newPassword: z.string().min(15).max(128) }).parse(req.body);
   const token = await prisma.passwordResetToken.findUnique({ where: { tokenHash: hashOpaqueToken(input.token) } });
   if (!token || token.usedAt || token.expiresAt <= new Date()) return res.status(400).json({ error: "Reset link is invalid or expired." });
   await prisma.$transaction([

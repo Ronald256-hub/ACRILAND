@@ -57,3 +57,7 @@ Phase 2 adds controlled vehicle movement and driver accountability:
 - driver mobile home for My Vehicle, My Trips, Inspections and My Profile
 
 After applying Phase 2 migrations to an existing environment, run `npm run sync:defaults` once to synchronize new action permissions, default role grants and standard pre/post-trip inspection templates.
+
+## Production deployment
+
+The recommended production topology and first-live verification checklist are in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md). The repository includes a production container that builds the API and web application together and serves the web app from the same HTTPS origin.

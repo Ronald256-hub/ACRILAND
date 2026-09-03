@@ -32,6 +32,9 @@ jobs:
       - name: Build frontend preview
         run: npm run build --workspace=apps/web
 
+      - name: Add SPA fallback for GitHub Pages
+        run: cp apps/web/dist/index.html apps/web/dist/404.html
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 

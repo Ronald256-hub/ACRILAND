@@ -10,7 +10,11 @@ export const telemetryRouter=Router();
 function routeId(value:string|string[]|undefined):string|null{return typeof value==="string"?value:null;}
 
 telemetryRouter.get("/latest",requirePermission(PERMISSIONS.TELEMETRY_VIEW),async(req,res)=>{
-  const rows=await prisma.telemetrySnapshot.findMany({where:{organizationId:req.auth!.organizationId},orderBy:{recordedAt:"desc"},distinct:["vehicleId"]});const vehicleIds=rows.map(i=>i.vehicleId);const vehicles=vehicleIds.length?await prisma.vehicle.findMany({where:{id:{in:vehicleIds}},select:{id:true,registrationNumber:true,fleetNumber:true,make:true,model:true,status:true,currentOdometerKm:true,currentLocation:true}}):[];const map=new Map(vehicles.map(v=>[v.id,v]));return res.json({items:rows.map(i=>({...i,vehicle:map.get(i.vehicleId)??null}))});
+  const organizationId=req.auth!.organizationId;
+  const vehicles=await prisma.vehicle.findMany({where:{organizationId,archivedAt:null},orderBy:{registrationNumber:"asc"},select:{id:true,registrationNumber:true,fleetNumber:true,make:true,model:true,status:true,currentOdometerKm:true,currentLocation:true}});
+  const snapshots=vehicles.length?await prisma.telemetrySnapshot.findMany({where:{organizationId,vehicleId:{in:vehicles.map(v=>v.id)}},orderBy:{recordedAt:"desc"},distinct:["vehicleId"]}):[];
+  const map=new Map(snapshots.map(row=>[row.vehicleId,row]));
+  return res.json({items:vehicles.map(vehicle=>{const latest=map.get(vehicle.id);return latest?{...latest,vehicle}:{id:`vehicle-${vehicle.id}`,vehicleId:vehicle.id,provider:"MANUAL / NO GPS",externalDeviceId:null,latitude:null,longitude:null,speedKph:null,ignitionOn:null,odometerKm:vehicle.currentOdometerKm,fuelPercent:null,headingDegrees:null,recordedAt:null,receivedAt:null,vehicle};})});
 });
 
 telemetryRouter.get("/vehicles/:id/history",requirePermission(PERMISSIONS.TELEMETRY_VIEW),async(req,res)=>{

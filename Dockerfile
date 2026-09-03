@@ -20,11 +20,10 @@ COPY --from=build /app/apps/api/package.json ./apps/api/package.json
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/prisma ./apps/api/prisma
-COPY --from=build /app/apps/api/scripts ./apps/api/scripts
 COPY --from=build /app/apps/web/dist ./apps/web/dist
 
 EXPOSE 4000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD node -e "fetch(\"http://127.0.0.1:4000/api/health\").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-CMD ["sh","-c","npm run db:deploy && npm run bootstrap && node apps/api/dist/src/server.js"]
+CMD ["sh","-c","npm run db:deploy && node apps/api/dist/scripts/bootstrap-admin.js && node apps/api/dist/src/server.js"]

@@ -2,7 +2,7 @@ export type IconName =
   | "command" | "vehicle" | "driver" | "assignment" | "trip" | "inspection"
   | "users" | "branch" | "department" | "audit" | "profile" | "search"
   | "bell" | "menu" | "close" | "plus" | "arrow" | "shield" | "alert"
-  | "check" | "clock" | "wrench" | "route" | "gauge" | "calendar" | "logout" | "camera";
+  | "check" | "clock" | "wrench" | "route" | "gauge" | "calendar" | "logout" | "camera" | "archive";
 
 const paths: Record<IconName, string[]> = {
   command: ["M4 4h6v6H4z", "M14 4h6v10h-6z", "M4 14h6v6H4z", "M14 18h6v2h-6z"],
@@ -31,7 +31,8 @@ const paths: Record<IconName, string[]> = {
   gauge: ["M4 18a8 8 0 1 1 16 0", "M12 18l4-5", "M6 18h12"],
   calendar: ["M5 5h14v15H5z", "M8 3v4", "M16 3v4", "M5 9h14"],
   logout: ["M10 5H5v14h5", "M14 8l4 4-4 4", "M9 12h9"],
-  camera: ["M4 7h3l2-2h6l2 2h3v12H4z", "M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"]
+  camera: ["M4 7h3l2-2h6l2 2h3v12H4z", "M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"],
+  archive: ["M4 7h16v4H4z", "M6 11v9h12v-9", "M9 15h6"]
 };
 
 export function Icon({ name, size = 18, className = "" }: { name: IconName; size?: number; className?: string }) {

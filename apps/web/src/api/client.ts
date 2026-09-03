@@ -1,11 +1,18 @@
+const configuredApiBase = String(import.meta.env.VITE_API_BASE_URL ?? "/api").trim().replace(/\/+$/, "");
+const apiBase = configuredApiBase || "/api";
+
 let accessToken: string | null = null;
 export const setAccessToken = (token: string | null) => { accessToken = token; };
+
+function apiUrl(path: string) {
+  return `${apiBase}${path.startsWith("/") ? path : `/${path}`}`;
+}
 
 async function raw(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   if (typeof init.body === "string" && !headers.has("content-type")) headers.set("content-type", "application/json");
   if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
-  return fetch(`/api${path}`, { ...init, headers, credentials: "include" });
+  return fetch(apiUrl(path), { ...init, headers, credentials: "include" });
 }
 
 async function authenticatedResponse(path: string, init: RequestInit = {}) {

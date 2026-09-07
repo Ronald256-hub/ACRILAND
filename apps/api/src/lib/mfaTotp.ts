@@ -1,4 +1,4 @@
-import { totpAt } from "./mfaCrypto.ts";
+import { totpAt } from "./mfaCrypto.js";
 
 const PERIOD_SECONDS=30;
 

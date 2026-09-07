@@ -1,7 +1,13 @@
 import type { NextFunction, Request, Response } from "express";
 import { prisma } from "../lib/prisma.js";
 
-const PRIVILEGED_ROLES = new Set(["SUPER_ADMINISTRATOR", "MANAGEMENT_DIRECTOR", "FLEET_MANAGER"]);
+const PRIVILEGED_ROLES = new Set([
+  "SUPER_ADMINISTRATOR",
+  "ADMINISTRATOR",
+  "SYSTEM_ADMIN",
+  "MANAGEMENT_DIRECTOR",
+  "FLEET_MANAGER"
+]);
 const MAX_MFA_AGE_MS = 12 * 60 * 60_000;
 
 export async function requireMfa(req: Request, res: Response, next: NextFunction) {

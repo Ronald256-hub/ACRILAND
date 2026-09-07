@@ -1,10 +1,13 @@
 import crypto from "node:crypto";
-import { env } from "../config/env.js";
 
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 const PERIOD = 30;
 
-function keyBytes(): Buffer { return Buffer.from(env.MFA_ENCRYPTION_KEY, "hex"); }
+function keyBytes(): Buffer {
+  const raw = process.env.MFA_ENCRYPTION_KEY;
+  if (!raw || !/^[0-9a-fA-F]{64}$/.test(raw)) throw new Error("MFA encryption key is unavailable or invalid.");
+  return Buffer.from(raw, "hex");
+}
 
 export function encryptMfaSecret(secret: string): string {
   const iv = crypto.randomBytes(12);

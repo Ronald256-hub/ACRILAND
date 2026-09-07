@@ -2,7 +2,7 @@ import { Router } from "express";
 import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
-import { hashPassword, verifyPassword } from "../../lib/password.js";
+import { verifyPassword } from "../../lib/password.js";
 import { verifyAccessToken } from "../../lib/tokens.js";
 import { buildOtpAuthUri, encryptMfaSecret, generateMfaSecret } from "../../lib/mfaCrypto.js";
 import { getMfaRow, savePendingMfaSecret, verifyAndRecordMfaAttempt, verifyPendingMfaSetup } from "../../lib/mfaStore.js";
@@ -38,7 +38,7 @@ mfaRouter.post("/setup",limiter,async(req,res)=>{
   if(!ctx) return res.status(401).json({error:"Authentication required."});
   const input=z.object({currentPassword:z.string().min(8).max(128)}).parse(req.body);
   if(new Date(ctx.session.createdAt).getTime()<Date.now()-15*60_000) return res.status(403).json({error:"Sign in again before enrolling MFA."});
-  if(!(await verifyPassword(input.currentPassword,ctx.session.user.passwordHash))) return res.status(400).json({error:"Current password is incorrect."});
+  if(!(await verifyPassword(input.currentPassword,ctx.session.user.passwordHash))){await auditMfa(ctx.session.user.id,ctx.session.user.organizationId,req,"MFA_SETUP_FAILED","Incorrect current password");return res.status(400).json({error:"Current password is incorrect."});}
   const existing=await getMfaRow(ctx.session.user.id);
   if(existing?.enabled) return res.status(409).json({error:"MFA is already enabled."});
   const secret=generateMfaSecret();
@@ -52,7 +52,7 @@ mfaRouter.post("/confirm",limiter,async(req,res)=>{
   if(!ctx) return res.status(401).json({error:"Authentication required."});
   const input=z.object({code:z.string().regex(/^\d{6}$/)}).parse(req.body);
   const result=await verifyPendingMfaSetup(ctx.session.user.id,input.code);
-  if(!result.ok) return res.status(400).json({error:"The authenticator code is invalid or the setup has expired. Start setup again."});
+  if(!result.ok){await auditMfa(ctx.session.user.id,ctx.session.user.organizationId,req,"MFA_SETUP_FAILED","Invalid authenticator code");return res.status(400).json({error:"The authenticator code is invalid or the setup has expired. Start setup again."});}
   await prisma.$executeRaw`INSERT INTO "MfaSession" ("sessionId","verifiedAt") VALUES (${ctx.session.id},CURRENT_TIMESTAMP) ON CONFLICT ("sessionId") DO UPDATE SET "verifiedAt"=CURRENT_TIMESTAMP`;
   await auditMfa(ctx.session.user.id,ctx.session.user.organizationId,req,"MFA_ENABLED");
   return res.json({enabled:true,recoveryCodes:result.recoveryCodes});
@@ -62,9 +62,10 @@ mfaRouter.post("/verify",limiter,async(req,res)=>{
   const ctx=await sessionContext(req);
   if(!ctx) return res.status(401).json({error:"Authentication required."});
   const input=z.object({code:z.string().min(6).max(20)}).parse(req.body);
-  const result=await verifyAndRecordMfaAttempt(ctx.session.user.id,input.code.replace(/\s+/g,"").toUpperCase());
-  if(result.locked) return res.status(423).json({error:"MFA is temporarily locked after repeated failed codes."});
-  if(!result.ok) return res.status(401).json({error:"Invalid MFA code."});
+  const normalized=input.code.replace(/[\s-]+/g,"").toUpperCase();
+  const result=await verifyAndRecordMfaAttempt(ctx.session.user.id,normalized);
+  if(result.locked){await auditMfa(ctx.session.user.id,ctx.session.user.organizationId,req,"MFA_LOCKED","Repeated invalid MFA codes");return res.status(423).json({error:"MFA is temporarily locked after repeated failed codes."});}
+  if(!result.ok){await auditMfa(ctx.session.user.id,ctx.session.user.organizationId,req,"MFA_FAILED","Invalid MFA code");return res.status(401).json({error:"Invalid MFA code."});}
   await prisma.$executeRaw`INSERT INTO "MfaSession" ("sessionId","verifiedAt") VALUES (${ctx.session.id},CURRENT_TIMESTAMP) ON CONFLICT ("sessionId") DO UPDATE SET "verifiedAt"=CURRENT_TIMESTAMP`;
   await auditMfa(ctx.session.user.id,ctx.session.user.organizationId,req,result.recovery?"MFA_RECOVERY_CODE_USED":"MFA_VERIFIED");
   return res.json({verified:true,recoveryCodeUsed:result.recovery});

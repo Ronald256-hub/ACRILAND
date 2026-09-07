@@ -26,9 +26,9 @@ function encodeBase32(bytes: Buffer): string {
   let bits = 0, value = 0, output = "";
   for (const byte of bytes) {
     value = (value << 8) | byte; bits += 8;
-    while (bits >= 5) { output += ALPHABET[(value >>> (bits - 5)) & 31]; bits -= 5; }
+    while (bits >= 5) { output += ALPHABET[(value >>> (bits - 5)) & 31]!; bits -= 5; }
   }
-  if (bits > 0) output += ALPHABET[(value << (5 - bits)) & 31];
+  if (bits > 0) output += ALPHABET[(value << (5 - bits)) & 31]!;
   return output;
 }
 
@@ -54,8 +54,12 @@ export function totpAt(secret: string, timestampMs = Date.now()): string {
   const counter = Math.floor(timestampMs / 1000 / PERIOD);
   const counterBuffer = Buffer.alloc(8); counterBuffer.writeBigUInt64BE(BigInt(counter));
   const hmac = crypto.createHmac("sha1", decodeBase32(secret)).update(counterBuffer).digest();
-  const offset = hmac[hmac.length - 1] & 0x0f;
-  const binary = ((hmac[offset] & 0x7f) << 24) | ((hmac[offset + 1] & 0xff) << 16) | ((hmac[offset + 2] & 0xff) << 8) | (hmac[offset + 3] & 0xff);
+  const offset = hmac[hmac.length - 1]! & 0x0f;
+  const b0 = hmac[offset]! & 0x7f;
+  const b1 = hmac[offset + 1]! & 0xff;
+  const b2 = hmac[offset + 2]! & 0xff;
+  const b3 = hmac[offset + 3]! & 0xff;
+  const binary = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
   return String(binary % 1_000_000).padStart(6, "0");
 }
 

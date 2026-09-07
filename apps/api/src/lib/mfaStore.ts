@@ -47,7 +47,8 @@ export async function verifyAndRecordMfaAttempt(userId:string,code:string):Promi
       return {ok:true,locked:false,recovery:false};
     }
     const recoveryRows=await tx.$queryRaw<RecoveryRow[]>`SELECT "id","codeHash","usedAt" FROM "MfaRecoveryCode" WHERE "userId"=${userId} AND "usedAt" IS NULL`;
-    const matching=recoveryRows.find(candidate=>safeEqual(candidate.codeHash,hashOpaqueToken(code)));
+    const rawCode=code.replace(/[\s-]+/g,"").toUpperCase();
+    const matching=recoveryRows.find(candidate=>safeEqual(candidate.codeHash,hashOpaqueToken(code))||safeEqual(candidate.codeHash,hashOpaqueToken(rawCode)));
     if(matching) {
       const changed=await tx.$executeRaw`UPDATE "MfaRecoveryCode" SET "usedAt"=CURRENT_TIMESTAMP WHERE "id"=${matching.id} AND "usedAt" IS NULL`;
       if(changed!==1) return {ok:false,locked:false,recovery:false};

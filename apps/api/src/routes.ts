@@ -34,11 +34,13 @@ import { documentsRouter } from "./modules/documents/routes.js";
 import { approvalEngineRouter } from "./modules/approvalEngine/routes.js";
 import { recordHubRouter } from "./modules/recordHub/routes.js";
 import { requireAuth } from "./middleware/auth.js";
+import { requireMfa } from "./middleware/mfa.js";
 
 export const apiRouter=Router();
 apiRouter.get("/health",(_req,res)=>res.json({status:"ok",service:"acriland-fleet-api"}));
 apiRouter.use("/auth",authRouter);
 apiRouter.use(requireAuth);
+apiRouter.use(requireMfa);
 apiRouter.use("/users",usersRouter);
 apiRouter.use("/branches",branchesRouter);
 apiRouter.use("/departments",departmentsRouter);

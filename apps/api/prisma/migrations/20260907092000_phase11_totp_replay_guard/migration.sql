@@ -1,0 +1,1 @@
+ALTER TABLE "UserMfa" ADD COLUMN "lastTotpStep" BIGINT;

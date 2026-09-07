@@ -23,7 +23,7 @@ async function sessionContext(req:any) {
 }
 
 async function auditMfa(userId:string,organizationId:string,req:any,action:string,reason?:string){
-  await prisma.auditLog.create({data:{organizationId,userId,action,recordType:"MFA",recordId:userId,reason:reason??null,ipAddress:req.ip??null,userAgent:req.get("user-agent")??null}});
+  await prisma.auditLog.create({data:{organizationId,userId,action,recordType:"MFA",recordId:userId,oldValue:null,newValue:null,reason:reason??null,ipAddress:req.ip??null,userAgent:req.get("user-agent")??null}});
 }
 
 mfaRouter.post("/status",limiter,async(req,res)=>{

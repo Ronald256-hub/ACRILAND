@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authRouter } from "./modules/auth/routes.js";
+import { mfaRouter } from "./modules/auth/mfaRoutes.js";
 import { usersRouter } from "./modules/users/routes.js";
 import { branchesRouter } from "./modules/branches/routes.js";
 import { departmentsRouter } from "./modules/departments/routes.js";
@@ -39,6 +40,7 @@ import { requireMfa } from "./middleware/mfa.js";
 export const apiRouter=Router();
 apiRouter.get("/health",(_req,res)=>res.json({status:"ok",service:"acriland-fleet-api"}));
 apiRouter.use("/auth",authRouter);
+apiRouter.use("/auth/mfa",mfaRouter);
 apiRouter.use(requireAuth);
 apiRouter.use(requireMfa);
 apiRouter.use("/users",usersRouter);

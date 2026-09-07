@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { verifyPassword } from "../../lib/password.js";
 import { verifyAccessToken } from "../../lib/tokens.js";
@@ -23,7 +24,7 @@ async function sessionContext(req:any) {
 }
 
 async function auditMfa(userId:string,organizationId:string,req:any,action:string,reason?:string){
-  await prisma.auditLog.create({data:{organizationId,userId,action,recordType:"MFA",recordId:userId,oldValue:null,newValue:null,reason:reason??null,ipAddress:req.ip??null,userAgent:req.get("user-agent")??null}});
+  await prisma.auditLog.create({data:{organizationId,userId,action,recordType:"MFA",recordId:userId,oldValue:Prisma.DbNull,newValue:Prisma.DbNull,reason:reason??null,ipAddress:req.ip??null,userAgent:req.get("user-agent")??null}});
 }
 
 mfaRouter.post("/status",limiter,async(req,res)=>{

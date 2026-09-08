@@ -8,6 +8,11 @@ declare global {
         permissions: Set<string>;
         roles: string[];
       };
+      telemetryDevice?: {
+        id: string;
+        organizationId: string;
+        vehicleId: string;
+      };
     }
   }
 }

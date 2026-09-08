@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import type { Request } from "express";
 import { prisma } from "./prisma.js";
-import { securityEvent } from "./securityEvents.js";
+import { securityEvent, severityForAuditAction } from "./securityEvents.js";
 
 function jsonSafe(value: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
   if (value === undefined) return Prisma.JsonNull;
@@ -30,7 +30,7 @@ export async function audit(req: Request, input: {
     userAgent: req.get("user-agent") ?? null
   }});
   try {
-    await securityEvent(req,{eventType:"AUDIT_ACTION",severity:undefined,action:input.action,recordType:input.recordType,recordId:input.recordId,reason:input.reason,metadata:{oldValue:input.oldValue,newValue:input.newValue}});
+    await securityEvent(req,{eventType:"AUDIT_ACTION",severity:severityForAuditAction(input.action),action:input.action,recordType:input.recordType,recordId:input.recordId,reason:input.reason});
   } catch {
     // Security telemetry must never turn a successful business audit action into a failed request.
   }

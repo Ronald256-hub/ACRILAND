@@ -9,8 +9,7 @@ test("Phase 6 settings permission is seeded",{skip:!hasDatabase},async()=>{
   try{const permission=await prisma.permission.findUnique({where:{key:"settings.manage"}});assert.ok(permission);}finally{await prisma.$disconnect();}
 });
 
-test("Phase 6 settings permission is mapped in governance role templates",()=>{
-  for(const role of ["SUPER_ADMINISTRATOR","ORGANIZATION_ADMINISTRATOR","FLEET_MANAGER"]){assert.ok(ROLE_TEMPLATES[role]?.includes("settings.manage"),`${role} should include settings.manage`);}
-  assert.equal(ROLE_TEMPLATES.DRIVER?.includes("settings.manage"),false);
-  assert.equal(ROLE_TEMPLATES.FINANCE_OFFICER?.includes("settings.manage"),false);
+test("settings management is restricted to administrator governance templates",()=>{
+  for(const role of ["SUPER_ADMINISTRATOR","ORGANIZATION_ADMINISTRATOR"]){assert.ok(ROLE_TEMPLATES[role]?.includes("settings.manage"),`${role} should include settings.manage`);}
+  for(const role of ["FLEET_MANAGER","DRIVER","FINANCE_OFFICER"]){assert.equal(ROLE_TEMPLATES[role]?.includes("settings.manage"),false,`${role} should not include settings.manage`);}
 });

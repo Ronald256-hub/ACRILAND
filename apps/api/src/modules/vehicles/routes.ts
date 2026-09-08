@@ -6,6 +6,7 @@ import { audit } from "../../lib/audit.js";
 import { PERMISSIONS } from "../../domain/permissions.js";
 import { canTransitionVehicle, validateOdometer, type VehicleStatus } from "../../domain/rules.js";
 import { requirePermission } from "../../middleware/authorize.js";
+import { requireFreshMfa } from "../../middleware/mfa.js";
 import { assertTenantReferences } from "../../lib/tenantRefs.js";
 
 export const vehiclesRouter = Router();
@@ -150,7 +151,7 @@ vehiclesRouter.patch("/:id", requirePermission(PERMISSIONS.VEHICLE_EDIT), async 
   return res.json(updated);
 });
 
-vehiclesRouter.post("/:id/archive", requirePermission(PERMISSIONS.VEHICLE_EDIT), async (req, res) => {
+vehiclesRouter.post("/:id/archive", requireFreshMfa, requirePermission(PERMISSIONS.VEHICLE_EDIT), async (req, res) => {
   const input = z.object({ reason: z.string().min(3).max(500) }).parse(req.body);
   const vehicleId = routeVehicleId(req.params.id);
   if (!vehicleId) return res.status(400).json({ error: "Invalid vehicle id." });

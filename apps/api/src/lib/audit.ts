@@ -30,7 +30,14 @@ export async function audit(req: Request, input: {
     userAgent: req.get("user-agent") ?? null
   }});
   try {
-    await securityEvent(req,{eventType:"AUDIT_ACTION",severity:severityForAuditAction(input.action),action:input.action,recordType:input.recordType,recordId:input.recordId,reason:input.reason});
+    await securityEvent(req, {
+      eventType: "AUDIT_ACTION",
+      severity: severityForAuditAction(input.action),
+      action: input.action,
+      recordType: input.recordType,
+      recordId: input.recordId,
+      ...(input.reason !== undefined ? { reason: input.reason } : {})
+    });
   } catch {
     // Security telemetry must never turn a successful business audit action into a failed request.
   }

@@ -11,11 +11,16 @@ RUN npm install
 COPY apps ./apps
 
 RUN npm run db:generate && npm run build
+RUN npm prune --omit=dev
 
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/* \
+  && groupadd --system --gid 10001 acriland \
+  && useradd --system --uid 10001 --gid acriland --create-home --home-dir /home/acriland acriland \
+  && mkdir -p /app/data/uploads
 ENV NODE_ENV=production
+ENV FILE_STORAGE_ROOT=/app/data/uploads
 
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/apps/api/package.json ./apps/api/package.json
@@ -23,6 +28,9 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/prisma ./apps/api/prisma
 COPY --from=build /app/apps/web/dist ./apps/web/dist
+
+RUN chown -R acriland:acriland /app
+USER acriland
 
 EXPOSE 4000
 

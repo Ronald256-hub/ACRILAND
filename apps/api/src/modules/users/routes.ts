@@ -6,6 +6,7 @@ import { audit } from "../../lib/audit.js";
 import { requirePermission } from "../../middleware/authorize.js";
 import { PERMISSIONS } from "../../domain/permissions.js";
 import { assertTenantReferences } from "../../lib/tenantRefs.js";
+import { requireFreshMfa } from "../../middleware/mfa.js";
 
 export const usersRouter = Router();
 
@@ -40,7 +41,7 @@ usersRouter.post("/", requirePermission(PERMISSIONS.USER_CREATE), async (req, re
   return res.status(201).json({ id:user.id, fullName:user.fullName, email:user.email, status:user.status });
 });
 
-usersRouter.patch("/:id/status", requirePermission(PERMISSIONS.USER_DISABLE), async (req,res)=>{
+usersRouter.patch("/:id/status", requireFreshMfa, requirePermission(PERMISSIONS.USER_DISABLE), async (req,res)=>{
   const input=z.object({status:z.enum(["ACTIVE","DISABLED"]),reason:z.string().min(3).max(500)}).parse(req.body);
   const userId=typeof req.params.id === "string" ? req.params.id : null;
   if(!userId) return res.status(400).json({error:"Invalid user id."});

@@ -30,11 +30,10 @@ authRouter.post("/login", loginLimiter, async (req, res) => {
   }
   const valid = await verifyPassword(input.password, user.passwordHash);
   if (!valid) {
-    const failed = user.failedLoginCount + 1;
-    const lock = failed >= 5 ? new Date(Date.now() + 15 * 60_000) : null;
-    await prisma.user.update({ where: { id: user.id }, data: { failedLoginCount: lock ? 0 : failed, lockedUntil: lock, status: lock ? "LOCKED" : user.status } });
-    await prisma.loginEvent.create({ data: { ...baseEvent, success: false, reason: lock ? "LOCKED_AFTER_FAILURES" : "BAD_PASSWORD" } });
-    return res.status(401).json({ error: lock ? "Account locked for 15 minutes." : "Invalid organization, email or password." });
+    const failed = Math.min(user.failedLoginCount + 1, 5);
+    await prisma.user.update({ where: { id: user.id }, data: { failedLoginCount: failed } });
+    await prisma.loginEvent.create({ data: { ...baseEvent, success: false, reason: failed >= 5 ? "BAD_PASSWORD_RATE_LIMITED" : "BAD_PASSWORD" } });
+    return res.status(401).json({ error: "Invalid organization, email or password." });
   }
   const refresh = newOpaqueToken();
   const refreshHash = hashOpaqueToken(refresh);

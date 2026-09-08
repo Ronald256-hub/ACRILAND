@@ -35,6 +35,7 @@ import { handoversRouter } from "./modules/handovers/routes.js";
 import { documentsRouter } from "./modules/documents/routes.js";
 import { approvalEngineRouter } from "./modules/approvalEngine/routes.js";
 import { recordHubRouter } from "./modules/recordHub/routes.js";
+import { securityRouter } from "./modules/security/routes.js";
 import { requireAuth } from "./middleware/auth.js";
 import { requireMfa } from "./middleware/mfa.js";
 
@@ -52,6 +53,7 @@ apiRouter.use("/vehicles",vehiclesRouter);
 apiRouter.use("/drivers",driversRouter);
 apiRouter.use("/dashboard",dashboardRouter);
 apiRouter.use("/audit",auditRouter);
+apiRouter.use("/security",securityRouter);
 apiRouter.use("/assignments",assignmentsRouter);
 apiRouter.use("/trips",tripsRouter);
 apiRouter.use("/inspections",inspectionsRouter);

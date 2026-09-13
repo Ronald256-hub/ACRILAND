@@ -13,6 +13,8 @@ import { authenticateTelemetryDevice, encryptTelemetryDeviceSecret, generateTele
 
 export const telemetryDeviceRouter = Router();
 const ingestLimit = rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: "draft-8", legacyHeaders: false });
+const MAX_EVENT_AGE_MS = 24 * 60 * 60_000;
+const MAX_EVENT_FUTURE_MS = 5 * 60_000;
 
 const telemetryInput = z.object({
   provider: z.string().min(2).max(120), externalDeviceId: z.string().max(150).optional(),
@@ -25,6 +27,10 @@ const telemetryInput = z.object({
 
 telemetryDeviceRouter.post("/ingest", ingestLimit, authenticateTelemetryDevice, async (req, res) => {
   const input = telemetryInput.parse(req.body);
+  const now = Date.now();
+  if (input.recordedAt.getTime() < now - MAX_EVENT_AGE_MS || input.recordedAt.getTime() > now + MAX_EVENT_FUTURE_MS) {
+    return res.status(422).json({ error: "Telemetry event time is outside the allowed window." });
+  }
   const device = req.telemetryDevice!;
   const vehicle = await prisma.vehicle.findFirst({ where: { id: device.vehicleId, organizationId: device.organizationId, archivedAt: null } });
   if (!vehicle) return res.status(404).json({ error: "Bound vehicle not found or archived." });

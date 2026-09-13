@@ -6,6 +6,7 @@ import { audit } from "../../lib/audit.js";
 import { PERMISSIONS } from "../../domain/permissions.js";
 import { assertDifferentApprover, validateOdometer } from "../../domain/rules.js";
 import { requireAnyPermission, requirePermission } from "../../middleware/authorize.js";
+import { requireFreshMfa } from "../../middleware/mfa.js";
 
 export const fuelRouter = Router();
 function routeId(value:string|string[]|undefined):string|null{return typeof value==="string"?value:null;}
@@ -35,7 +36,7 @@ fuelRouter.post("/",requirePermission(PERMISSIONS.FUEL_CREATE),async(req,res)=>{
   await audit(req,{action:"CREATE",recordType:"FUEL_TRANSACTION",recordId:created.id,newValue:created});return res.status(201).json(created);
 });
 
-fuelRouter.post("/:id/decision",requirePermission(PERMISSIONS.FUEL_APPROVE),async(req,res)=>{
+fuelRouter.post("/:id/decision",requireFreshMfa,requirePermission(PERMISSIONS.FUEL_APPROVE),async(req,res)=>{
   const id=routeId(req.params.id);if(!id)return res.status(400).json({error:"Invalid fuel request id."});
   const input=z.object({decision:z.enum(["APPROVED","REJECTED"]),comments:z.string().max(1500).optional()}).parse(req.body);
   const row=await prisma.fuelTransaction.findFirst({where:{id,organizationId:req.auth!.organizationId}});if(!row)return res.status(404).json({error:"Fuel request not found."});if(row.status!=="REQUESTED")return res.status(409).json({error:"Only pending fuel requests can be approved or rejected."});
@@ -50,7 +51,7 @@ fuelRouter.post("/:id/decision",requirePermission(PERMISSIONS.FUEL_APPROVE),asyn
   await audit(req,{action:input.decision==="APPROVED"?"APPROVE":"REJECT",recordType:"FUEL_TRANSACTION",recordId:row.id,oldValue:{status:row.status},newValue:{status:updated.status},...(input.comments?{reason:input.comments}:{})});return res.json(updated);
 });
 
-fuelRouter.post("/:id/issue",requirePermission(PERMISSIONS.FUEL_APPROVE),async(req,res)=>{
+fuelRouter.post("/:id/issue",requireFreshMfa,requirePermission(PERMISSIONS.FUEL_APPROVE),async(req,res)=>{
   const id=routeId(req.params.id);if(!id)return res.status(400).json({error:"Invalid fuel request id."});
   const input=z.object({issuedLitres:z.number().positive().max(5000),unitPrice:z.number().min(0),station:z.string().min(2).max(200),receiptNumber:z.string().max(150).optional(),odometerKm:z.number().int().min(0).optional(),notes:z.string().max(2000).optional()}).parse(req.body);
   const row=await prisma.fuelTransaction.findFirst({where:{id,organizationId:req.auth!.organizationId},include:{vehicle:true}});if(!row)return res.status(404).json({error:"Fuel request not found."});if(row.status!=="APPROVED")return res.status(409).json({error:"Fuel must be approved before issue."});

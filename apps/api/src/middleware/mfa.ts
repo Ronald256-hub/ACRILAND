@@ -19,12 +19,14 @@ export async function requireMfa(req: Request, res: Response, next: NextFunction
 }
 
 /**
- * Fresh-authentication gate for high-impact privileged operations.
- * The normal privileged MFA gate permits a verified session for 12 hours;
- * destructive/financial/security-sensitive actions require MFA again within 15 minutes.
+ * Fresh authentication gate for high-impact operations.
+ * Any authenticated caller reaching this middleware must have verified MFA
+ * within the last 15 minutes. This deliberately does not depend on role,
+ * because sensitive permissions may also be granted to Finance or other
+ * non-privileged operational roles.
  */
 export async function requireFreshMfa(req: Request, res: Response, next: NextFunction) {
-  if (!req.auth || !req.auth.roles.some((role) => PRIVILEGED_ROLES.has(role))) return next();
+  if (!req.auth) return res.status(401).json({ error:"Authentication required." });
   const verified = await prisma.$queryRaw<Array<{ sessionId:string }>>`SELECT "sessionId" FROM "MfaSession" WHERE "sessionId"=${req.auth.sessionId} AND "verifiedAt">${new Date(Date.now()-STEP_UP_MFA_AGE_MS)} LIMIT 1`;
   if (verified.length === 0) return res.status(403).json({ error:"Fresh MFA verification required for this high-impact operation.", code:"MFA_STEP_UP_REQUIRED" });
   return next();

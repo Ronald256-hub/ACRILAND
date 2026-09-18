@@ -6,7 +6,8 @@ const users = readFileSync(new URL("../src/modules/users/routes.ts", import.meta
 const auth = readFileSync(new URL("../src/modules/auth/routes.ts", import.meta.url), "utf8");
 
 test("user provisioning requires fresh MFA and cannot grant protected admin roles casually", () => {
-  const create = users.slice(users.indexOf('usersRouter.post("/")'), users.indexOf('usersRouter.patch("/:id/status"'));
+  const create = users.slice(users.indexOf('usersRouter.post("/",'), users.indexOf('usersRouter.patch("/:id/status"'));
+  assert.notEqual(create, "", "user create route must be present");
   assert.match(create, /requireFreshMfa, requirePermission\(PERMISSIONS\.USER_CREATE\)/);
   assert.match(create, /PROTECTED_ADMIN_ROLES/);
   assert.match(create, /Only a Super Administrator may provision protected administrator roles/);
@@ -16,6 +17,7 @@ test("user provisioning requires fresh MFA and cannot grant protected admin role
 
 test("user status administration is serialized and protects the last administrator", () => {
   const status = users.slice(users.indexOf('usersRouter.patch("/:id/status"'));
+  assert.notEqual(status, "", "user status route must be present");
   assert.match(status, /requireFreshMfa, requirePermission\(PERMISSIONS\.USER_DISABLE\)/);
   assert.match(status, /prisma\.\$transaction\(async tx=>/);
   assert.match(status, /FROM "User"/);

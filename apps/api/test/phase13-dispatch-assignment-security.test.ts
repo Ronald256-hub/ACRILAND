@@ -6,7 +6,7 @@ const assignments = readFileSync(new URL("../src/modules/assignments/routes.ts",
 const dispatch = readFileSync(new URL("../src/modules/dispatch/routes.ts", import.meta.url), "utf8");
 
 test("vehicle assignment creation uses fresh MFA and serializes vehicle/driver availability", () => {
-  const create = assignments.slice(assignments.indexOf('assignmentsRouter.post("/")'), assignments.indexOf('assignmentsRouter.post("/:id/end"'));
+  const create = assignments.slice(assignments.indexOf('assignmentsRouter.post("/",'), assignments.indexOf('assignmentsRouter.post("/:id/end"'));
   assert.match(create, /requireFreshMfa, requirePermission\(PERMISSIONS\.ASSIGNMENT_CREATE\)/);
   assert.match(create, /prisma\.\$transaction\(async \(tx\) =>/);
   assert.equal((create.match(/FOR UPDATE/g) ?? []).length, 2);

@@ -124,7 +124,64 @@ inventoryRouter.post("/procurement/:id/order",requireFreshMfa,requirePermission(
 });
 
 inventoryRouter.post("/procurement/:id/receive",requirePermission(PERMISSIONS.INVENTORY_MANAGE),async(req,res)=>{
-  const id=routeId(req.params.id);if(!id)return res.status(400).json({error:"Invalid procurement request id."});const input=z.object({reference:z.string().max(150).optional(),notes:z.string().max(1000).optional()}).parse(req.body);const row=await prisma.procurementRequest.findFirst({where:{id,organizationId:req.auth!.organizationId}});if(!row)return res.status(404).json({error:"Procurement request not found."});if(row.status!=="ORDERED")return res.status(409).json({error:"Only an ordered procurement request can be received."});const item=await prisma.inventoryItem.findFirst({where:{id:row.itemId,organizationId:req.auth!.organizationId,isActive:true}});if(!item)return res.status(404).json({error:"Inventory item not found."});const qty=n(row.requestedQuantity);
-  const result=await prisma.$transaction(async tx=>{const updatedItem=await tx.inventoryItem.update({where:{id:item.id},data:{quantityOnHand:{increment:qty},...(row.unitPrice!==null?{unitCost:row.unitPrice}:{})}});const movement=await tx.stockMovement.create({data:{organizationId:req.auth!.organizationId,itemId:item.id,type:"RECEIPT",quantity:qty,unitCost:row.unitPrice,reference:input.reference??row.requestNumber,performedByUserId:req.auth!.userId,notes:input.notes??null}});const procurement=await tx.procurementRequest.update({where:{id:row.id},data:{status:"RECEIVED",receivedAt:new Date()}});if(n(updatedItem.quantityOnHand)>n(updatedItem.reorderLevel))await tx.operationalAlert.updateMany({where:{organizationId:req.auth!.organizationId,sourceType:"INVENTORY_ITEM",sourceId:item.id,category:"LOW_STOCK",status:{not:"CLOSED"}},data:{status:"CLOSED",closedAt:new Date()}});return{item:updatedItem,movement,procurement};});
-  await audit(req,{action:"RECEIVE",recordType:"PROCUREMENT_REQUEST",recordId:row.id,oldValue:{status:row.status},newValue:{status:result.procurement.status,quantityOnHand:result.item.quantityOnHand}});return res.json(result);
+  const id=routeId(req.params.id);
+  if(!id)return res.status(400).json({error:"Invalid procurement request id."});
+  const input=z.object({reference:z.string().max(150).optional(),notes:z.string().max(1000).optional()}).parse(req.body);
+
+  const result=await prisma.$transaction(async tx=>{
+    const locked=await tx.$queryRaw<Array<{id:string;status:string;itemId:string;requestedQuantity:Prisma.Decimal;unitPrice:Prisma.Decimal|null}>>(Prisma.sql`
+      SELECT "id","status","itemId","requestedQuantity","unitPrice"
+      FROM "ProcurementRequest"
+      WHERE "id"=${id}::uuid
+        AND "organizationId"=${req.auth!.organizationId}::uuid
+      FOR UPDATE
+    `);
+    const row=locked[0];
+    if(!row)return {kind:"not_found" as const};
+    if(row.status!=="ORDERED")return {kind:"invalid_state" as const,status:row.status};
+
+    const itemLock=await tx.$queryRaw<Array<{id:string}>>(Prisma.sql`
+      SELECT "id"
+      FROM "InventoryItem"
+      WHERE "id"=${row.itemId}::uuid
+        AND "organizationId"=${req.auth!.organizationId}::uuid
+        AND "isActive"=true
+      FOR UPDATE
+    `);
+    if(itemLock.length===0)return {kind:"item_not_found" as const};
+
+    const item=await tx.inventoryItem.findUniqueOrThrow({where:{id:row.itemId}});
+    const qty=n(row.requestedQuantity);
+    const updatedItem=await tx.inventoryItem.update({
+      where:{id:item.id},
+      data:{quantityOnHand:{increment:qty},...(row.unitPrice!==null?{unitCost:row.unitPrice}:{})}
+    });
+    const movement=await tx.stockMovement.create({
+      data:{
+        organizationId:req.auth!.organizationId,
+        itemId:item.id,
+        type:"RECEIPT",
+        quantity:qty,
+        unitCost:row.unitPrice,
+        reference:input.reference??("PR-"+id.slice(0,8).toUpperCase()),
+        performedByUserId:req.auth!.userId,
+        notes:input.notes??null
+      }
+    });
+    const procurement=await tx.procurementRequest.update({where:{id:row.id},data:{status:"RECEIVED",receivedAt:new Date()}});
+    if(n(updatedItem.quantityOnHand)>n(updatedItem.reorderLevel)){
+      await tx.operationalAlert.updateMany({
+        where:{organizationId:req.auth!.organizationId,sourceType:"INVENTORY_ITEM",sourceId:item.id,category:"LOW_STOCK",status:{not:"CLOSED"}},
+        data:{status:"CLOSED",closedAt:new Date()}
+      });
+    }
+    return {kind:"received" as const,item:updatedItem,movement,procurement,oldStatus:row.status};
+  });
+
+  if(result.kind==="not_found")return res.status(404).json({error:"Procurement request not found."});
+  if(result.kind==="invalid_state")return res.status(409).json({error:"Only an ordered procurement request can be received; current status is "+result.status+"."});
+  if(result.kind==="item_not_found")return res.status(404).json({error:"Inventory item not found or inactive."});
+
+  await audit(req,{action:"RECEIVE",recordType:"PROCUREMENT_REQUEST",recordId:result.procurement.id,oldValue:{status:result.oldStatus},newValue:{status:result.procurement.status,quantityOnHand:result.item.quantityOnHand}});
+  return res.json(result);
 });

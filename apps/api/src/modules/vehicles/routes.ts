@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { Router } from "express";
+import { Router, type RequestHandler } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { audit } from "../../lib/audit.js";
@@ -10,6 +10,12 @@ import { requireFreshMfa } from "../../middleware/mfa.js";
 import { assertTenantReferences } from "../../lib/tenantRefs.js";
 
 export const vehiclesRouter = Router();
+const requireFreshMfaOnStateChange:RequestHandler=async(req,res,next)=>{
+  if(typeof req.body?.status==="string") return requireFreshMfa(req,res,next);
+  return next();
+};
+
+
 const base = z.object({
   registrationNumber: z.string().min(2).max(30),
   fleetNumber: z.string().max(30).optional(),
@@ -95,71 +101,108 @@ vehiclesRouter.post("/", requirePermission(PERMISSIONS.VEHICLE_CREATE), async (r
   return res.status(201).json(row);
 });
 
-vehiclesRouter.patch("/:id", requirePermission(PERMISSIONS.VEHICLE_EDIT), async (req, res) => {
+vehiclesRouter.patch("/:id", requireFreshMfaOnStateChange, requirePermission(PERMISSIONS.VEHICLE_EDIT), async (req, res) => {
   const input = base.partial().extend({
     status: z.enum(["AVAILABLE", "RESERVED", "ASSIGNED", "ON_TRIP", "PARKED", "SERVICE_DUE", "SERVICE_OVERDUE", "UNDER_INSPECTION", "UNDER_MAINTENANCE", "BREAKDOWN", "ACCIDENT", "GROUNDED", "OUT_OF_SERVICE", "DISPOSED"]).optional(),
     reason: z.string().max(500).optional()
   }).parse(req.body);
   const vehicleId = routeVehicleId(req.params.id);
   if (!vehicleId) return res.status(400).json({ error: "Invalid vehicle id." });
-  const current = await prisma.vehicle.findFirst({ where: { id: vehicleId, organizationId: req.auth!.organizationId, archivedAt: null } });
-  if (!current) return res.status(404).json({ error: "Vehicle not found." });
 
-  const initial = input.initialOdometerKm ?? current.initialOdometerKm;
-  const currentOdo = input.currentOdometerKm ?? current.currentOdometerKm;
-  validateOdometer(initial, currentOdo);
-  await assertTenantReferences(req.auth!.organizationId, input.branchId ?? current.branchId ?? undefined, input.departmentId ?? current.departmentId ?? undefined);
-  if (input.status && !canTransitionVehicle(current.status as VehicleStatus, input.status as VehicleStatus)) {
-    return res.status(409).json({ error: `Vehicle status cannot move directly from ${current.status} to ${input.status}.` });
-  }
-  if (input.status && input.status !== current.status && ["GROUNDED", "OUT_OF_SERVICE", "DISPOSED"].includes(input.status) && !input.reason) {
-    return res.status(400).json({ error: "A reason is required for this status change." });
-  }
+  const result = await prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<Array<{
+      id:string; organizationId:string; status:string; archivedAt:Date|null;
+      initialOdometerKm:number; currentOdometerKm:number; branchId:string|null; departmentId:string|null;
+    }>>(Prisma.sql`
+      SELECT "id","organizationId","status","archivedAt","initialOdometerKm","currentOdometerKm","branchId","departmentId"
+      FROM "Vehicle"
+      WHERE "id"=${vehicleId}::uuid
+        AND "organizationId"=${req.auth!.organizationId}::uuid
+        AND "archivedAt" IS NULL
+      FOR UPDATE
+    `);
+    const current=rows[0];
+    if(!current) return {kind:"not_found" as const};
 
-  const data: Prisma.VehicleUncheckedUpdateInput = {};
-  if (input.registrationNumber !== undefined) data.registrationNumber = input.registrationNumber.toUpperCase();
-  if (input.fleetNumber !== undefined) data.fleetNumber = input.fleetNumber;
-  if (input.vin !== undefined) data.vin = input.vin.toUpperCase();
-  if (input.engineNumber !== undefined) data.engineNumber = input.engineNumber;
-  if (input.make !== undefined) data.make = input.make;
-  if (input.model !== undefined) data.model = input.model;
-  if (input.variant !== undefined) data.variant = input.variant;
-  if (input.category !== undefined) data.category = input.category;
-  if (input.bodyType !== undefined) data.bodyType = input.bodyType;
-  if (input.manufacturingYear !== undefined) data.manufacturingYear = input.manufacturingYear;
-  if (input.registrationYear !== undefined) data.registrationYear = input.registrationYear;
-  if (input.fuelType !== undefined) data.fuelType = input.fuelType;
-  if (input.transmission !== undefined) data.transmission = input.transmission;
-  if (input.tankCapacityLitres !== undefined) data.tankCapacityLitres = input.tankCapacityLitres;
-  if (input.initialOdometerKm !== undefined) data.initialOdometerKm = input.initialOdometerKm;
-  if (input.currentOdometerKm !== undefined) data.currentOdometerKm = input.currentOdometerKm;
-  if (input.branchId !== undefined) data.branchId = input.branchId;
-  if (input.departmentId !== undefined) data.departmentId = input.departmentId;
-  if (input.currentLocation !== undefined) data.currentLocation = input.currentLocation;
-  if (input.notes !== undefined) data.notes = input.notes;
-  if (input.status !== undefined) data.status = input.status;
+    const initial = input.initialOdometerKm ?? current.initialOdometerKm;
+    const currentOdo = input.currentOdometerKm ?? current.currentOdometerKm;
+    validateOdometer(initial, currentOdo);
+    await assertTenantReferences(
+      req.auth!.organizationId,
+      input.branchId ?? current.branchId ?? undefined,
+      input.departmentId ?? current.departmentId ?? undefined
+    );
+    if (input.status && !canTransitionVehicle(current.status as VehicleStatus, input.status as VehicleStatus)) {
+      return {kind:"invalid_transition" as const,from:current.status,to:input.status};
+    }
+    if (input.status && input.status !== current.status && ["GROUNDED","OUT_OF_SERVICE","DISPOSED"].includes(input.status) && !input.reason) {
+      return {kind:"missing_reason" as const};
+    }
 
-  const updated = await prisma.vehicle.update({ where: { id: current.id }, data });
-  await audit(req, {
-    action: "UPDATE",
-    recordType: "VEHICLE",
-    recordId: current.id,
-    oldValue: current,
-    newValue: updated,
-    ...(input.reason !== undefined ? { reason: input.reason } : {})
+    const data: Prisma.VehicleUncheckedUpdateInput = {};
+    if (input.registrationNumber !== undefined) data.registrationNumber = input.registrationNumber.toUpperCase();
+    if (input.fleetNumber !== undefined) data.fleetNumber = input.fleetNumber;
+    if (input.vin !== undefined) data.vin = input.vin.toUpperCase();
+    if (input.engineNumber !== undefined) data.engineNumber = input.engineNumber;
+    if (input.make !== undefined) data.make = input.make;
+    if (input.model !== undefined) data.model = input.model;
+    if (input.variant !== undefined) data.variant = input.variant;
+    if (input.category !== undefined) data.category = input.category;
+    if (input.bodyType !== undefined) data.bodyType = input.bodyType;
+    if (input.manufacturingYear !== undefined) data.manufacturingYear = input.manufacturingYear;
+    if (input.registrationYear !== undefined) data.registrationYear = input.registrationYear;
+    if (input.fuelType !== undefined) data.fuelType = input.fuelType;
+    if (input.transmission !== undefined) data.transmission = input.transmission;
+    if (input.tankCapacityLitres !== undefined) data.tankCapacityLitres = input.tankCapacityLitres;
+    if (input.initialOdometerKm !== undefined) data.initialOdometerKm = input.initialOdometerKm;
+    if (input.currentOdometerKm !== undefined) data.currentOdometerKm = input.currentOdometerKm;
+    if (input.branchId !== undefined) data.branchId = input.branchId;
+    if (input.departmentId !== undefined) data.departmentId = input.departmentId;
+    if (input.currentLocation !== undefined) data.currentLocation = input.currentLocation;
+    if (input.notes !== undefined) data.notes = input.notes;
+    if (input.status !== undefined) data.status = input.status;
+
+    const updated=await tx.vehicle.update({where:{id:current.id},data});
+    return {kind:"updated" as const,current,updated};
   });
-  return res.json(updated);
+
+  if(result.kind==="not_found") return res.status(404).json({error:"Vehicle not found."});
+  if(result.kind==="invalid_transition") return res.status(409).json({error:`Vehicle status cannot move directly from ${result.from} to ${result.to}.`});
+  if(result.kind==="missing_reason") return res.status(400).json({error:"A reason is required for this status change."});
+
+  await audit(req,{
+    action:"UPDATE",
+    recordType:"VEHICLE",
+    recordId:result.updated.id,
+    oldValue:result.current,
+    newValue:result.updated,
+    ...(input.reason!==undefined?{reason:input.reason}:{})
+  });
+  return res.json(result.updated);
 });
 
 vehiclesRouter.post("/:id/archive", requireFreshMfa, requirePermission(PERMISSIONS.VEHICLE_EDIT), async (req, res) => {
   const input = z.object({ reason: z.string().min(3).max(500) }).parse(req.body);
   const vehicleId = routeVehicleId(req.params.id);
   if (!vehicleId) return res.status(400).json({ error: "Invalid vehicle id." });
-  const current = await prisma.vehicle.findFirst({ where: { id: vehicleId, organizationId: req.auth!.organizationId, archivedAt: null } });
-  if (!current) return res.status(404).json({ error: "Vehicle not found." });
-  if (current.status !== "DISPOSED") return res.status(409).json({ error: "Only a vehicle already marked DISPOSED can be archived from the active fleet register." });
 
-  const updated = await prisma.vehicle.update({ where: { id: current.id }, data: { archivedAt: new Date() } });
-  await audit(req, { action: "ARCHIVE", recordType: "VEHICLE", recordId: current.id, oldValue: current, newValue: updated, reason: input.reason });
-  return res.json({ ok: true, vehicle: updated });
+  const result=await prisma.$transaction(async tx=>{
+    const rows=await tx.$queryRaw<Array<{id:string;status:string;archivedAt:Date|null}>>(Prisma.sql`
+      SELECT "id","status","archivedAt"
+      FROM "Vehicle"
+      WHERE "id"=${vehicleId}::uuid
+        AND "organizationId"=${req.auth!.organizationId}::uuid
+        AND "archivedAt" IS NULL
+      FOR UPDATE
+    `);
+    const current=rows[0];
+    if(!current)return {kind:"not_found" as const};
+    if(current.status!=="DISPOSED")return {kind:"invalid_state" as const};
+    const updated=await tx.vehicle.update({where:{id:current.id},data:{archivedAt:new Date()}});
+    return {kind:"updated" as const,current,updated};
+  });
+  if(result.kind==="not_found")return res.status(404).json({error:"Vehicle not found."});
+  if(result.kind==="invalid_state")return res.status(409).json({error:"Only a vehicle already marked DISPOSED can be archived from the active fleet register."});
+  await audit(req,{action:"ARCHIVE",recordType:"VEHICLE",recordId:result.updated.id,oldValue:result.current,newValue:result.updated,reason:input.reason});
+  return res.json({ok:true,vehicle:result.updated});
 });

@@ -7,6 +7,7 @@ import { audit } from "../../lib/audit.js";
 import { PERMISSIONS } from "../../domain/permissions.js";
 import { assertDifferentApprover, BusinessRuleError } from "../../domain/rules.js";
 import { requirePermission } from "../../middleware/authorize.js";
+import { requireFreshMfa } from "../../middleware/mfa.js";
 
 export const inventoryRouter = Router();
 function routeId(value:string|string[]|undefined):string|null{return typeof value==="string"?value:null;}
@@ -57,12 +58,69 @@ inventoryRouter.post("/procurement",requirePermission(PERMISSIONS.PROCUREMENT_CR
   const input=z.object({itemId:z.string().uuid(),requestedQuantity:z.number().positive(),neededBy:z.coerce.date().optional(),justification:z.string().min(5).max(2000),supplier:z.string().max(200).optional()}).parse(req.body);const item=await prisma.inventoryItem.findFirst({where:{id:input.itemId,organizationId:req.auth!.organizationId,isActive:true}});if(!item)return res.status(404).json({error:"Inventory item not found."});const created=await prisma.procurementRequest.create({data:{organizationId:req.auth!.organizationId,requestNumber:requestNumber(),itemId:item.id,requestedQuantity:input.requestedQuantity,status:"REQUESTED",requestedByUserId:req.auth!.userId,supplier:input.supplier??item.preferredSupplier,neededBy:input.neededBy??null,justification:input.justification}});await audit(req,{action:"CREATE",recordType:"PROCUREMENT_REQUEST",recordId:created.id,newValue:created});return res.status(201).json(created);
 });
 
-inventoryRouter.post("/procurement/:id/decision",requirePermission(PERMISSIONS.PROCUREMENT_APPROVE),async(req,res)=>{
-  const id=routeId(req.params.id);if(!id)return res.status(400).json({error:"Invalid procurement request id."});const input=z.object({decision:z.enum(["APPROVED","REJECTED"]),comments:z.string().max(1500).optional()}).parse(req.body);const row=await prisma.procurementRequest.findFirst({where:{id,organizationId:req.auth!.organizationId}});if(!row)return res.status(404).json({error:"Procurement request not found."});if(row.status!=="REQUESTED")return res.status(409).json({error:"Only requested procurement can be approved or rejected."});assertDifferentApprover(row.requestedByUserId,req.auth!.userId);if(input.decision==="REJECTED"&&!input.comments)return res.status(400).json({error:"A rejection reason is required."});const updated=await prisma.procurementRequest.update({where:{id:row.id},data:input.decision==="APPROVED"?{status:"APPROVED",approvedByUserId:req.auth!.userId,approvedAt:new Date(),rejectionReason:null}:{status:"REJECTED",approvedByUserId:req.auth!.userId,approvedAt:new Date(),rejectionReason:input.comments??"Rejected"}});await audit(req,{action:input.decision==="APPROVED"?"APPROVE":"REJECT",recordType:"PROCUREMENT_REQUEST",recordId:row.id,oldValue:{status:row.status},newValue:{status:updated.status},...(input.comments?{reason:input.comments}:{})});return res.json(updated);
+inventoryRouter.post("/procurement/:id/decision",requireFreshMfa,requirePermission(PERMISSIONS.PROCUREMENT_APPROVE),async(req,res)=>{
+  const id=routeId(req.params.id);
+  if(!id)return res.status(400).json({error:"Invalid procurement request id."});
+  const input=z.object({decision:z.enum(["APPROVED","REJECTED"]),comments:z.string().max(1500).optional()}).parse(req.body);
+
+  const result=await prisma.$transaction(async tx=>{
+    const locked=await tx.$queryRaw<Array<{id:string;status:string;requestedByUserId:string}>>(Prisma.sql`
+      SELECT "id","status","requestedByUserId"
+      FROM "ProcurementRequest"
+      WHERE "id"=${id}::uuid
+        AND "organizationId"=${req.auth!.organizationId}::uuid
+      FOR UPDATE
+    `);
+    const row=locked[0];
+    if(!row)return {kind:"not_found" as const};
+    if(row.status!=="REQUESTED")return {kind:"invalid_state" as const,status:row.status};
+    if(row.requestedByUserId===req.auth!.userId)return {kind:"self_approval" as const};
+    if(input.decision==="REJECTED"&&!input.comments)return {kind:"missing_reason" as const};
+
+    const updated=await tx.procurementRequest.update({
+      where:{id:row.id},
+      data:input.decision==="APPROVED"
+        ? {status:"APPROVED",approvedByUserId:req.auth!.userId,approvedAt:new Date(),rejectionReason:null}
+        : {status:"REJECTED",approvedByUserId:req.auth!.userId,approvedAt:new Date(),rejectionReason:input.comments??"Rejected"}
+    });
+    return {kind:"updated" as const,updated,oldStatus:row.status};
+  });
+
+  if(result.kind==="not_found")return res.status(404).json({error:"Procurement request not found."});
+  if(result.kind==="invalid_state")return res.status(409).json({error:`Only requested procurement can be approved or rejected; current status is ${result.status}.`});
+  if(result.kind==="self_approval")return res.status(403).json({error:"A user cannot approve their own procurement request."});
+  if(result.kind==="missing_reason")return res.status(400).json({error:"A rejection reason is required."});
+
+  await audit(req,{action:input.decision==="APPROVED"?"APPROVE":"REJECT",recordType:"PROCUREMENT_REQUEST",recordId:result.updated.id,oldValue:{status:result.oldStatus},newValue:{status:result.updated.status},...(input.comments?{reason:input.comments}:{})});
+  return res.json(result.updated);
 });
 
-inventoryRouter.post("/procurement/:id/order",requirePermission(PERMISSIONS.PROCUREMENT_APPROVE),async(req,res)=>{
-  const id=routeId(req.params.id);if(!id)return res.status(400).json({error:"Invalid procurement request id."});const input=z.object({supplier:z.string().min(2).max(200),unitPrice:z.number().min(0)}).parse(req.body);const row=await prisma.procurementRequest.findFirst({where:{id,organizationId:req.auth!.organizationId}});if(!row)return res.status(404).json({error:"Procurement request not found."});if(row.status!=="APPROVED")return res.status(409).json({error:"Procurement must be approved before ordering."});const total=n(row.requestedQuantity)*input.unitPrice;const updated=await prisma.procurementRequest.update({where:{id:row.id},data:{status:"ORDERED",supplier:input.supplier,unitPrice:input.unitPrice,totalCost:total,orderedAt:new Date()}});await audit(req,{action:"ORDER",recordType:"PROCUREMENT_REQUEST",recordId:row.id,oldValue:{status:row.status},newValue:{status:updated.status,totalCost:updated.totalCost}});return res.json(updated);
+inventoryRouter.post("/procurement/:id/order",requireFreshMfa,requirePermission(PERMISSIONS.PROCUREMENT_APPROVE),async(req,res)=>{
+  const id=routeId(req.params.id);
+  if(!id)return res.status(400).json({error:"Invalid procurement request id."});
+  const input=z.object({supplier:z.string().min(2).max(200),unitPrice:z.number().min(0)}).parse(req.body);
+
+  const result=await prisma.$transaction(async tx=>{
+    const locked=await tx.$queryRaw<Array<{id:string;status:string;organizationId:string;requestedQuantity:Prisma.Decimal}>>(Prisma.sql`
+      SELECT "id","status","organizationId","requestedQuantity"
+      FROM "ProcurementRequest"
+      WHERE "id"=${id}::uuid
+        AND "organizationId"=${req.auth!.organizationId}::uuid
+      FOR UPDATE
+    `);
+    const row=locked[0];
+    if(!row)return {kind:"not_found" as const};
+    if(row.status!=="APPROVED")return {kind:"invalid_state" as const,status:row.status};
+    const total=n(row.requestedQuantity)*input.unitPrice;
+    const updated=await tx.procurementRequest.update({where:{id:row.id},data:{status:"ORDERED",supplier:input.supplier.trim(),unitPrice:input.unitPrice,totalCost:total,orderedAt:new Date()}});
+    return {kind:"updated" as const,updated,oldStatus:row.status};
+  });
+
+  if(result.kind==="not_found")return res.status(404).json({error:"Procurement request not found."});
+  if(result.kind==="invalid_state")return res.status(409).json({error:`Procurement must be approved before ordering; current status is ${result.status}.`});
+
+  await audit(req,{action:"ORDER",recordType:"PROCUREMENT_REQUEST",recordId:result.updated.id,oldValue:{status:result.oldStatus},newValue:{status:result.updated.status,totalCost:result.updated.totalCost}});
+  return res.json(result.updated);
 });
 
 inventoryRouter.post("/procurement/:id/receive",requirePermission(PERMISSIONS.INVENTORY_MANAGE),async(req,res)=>{

@@ -153,4 +153,3 @@ assignmentsRouter.post("/:id/end", requireFreshMfa, requirePermission(PERMISSION
   await audit(req, { action:"UPDATE", recordType:"VEHICLE_ASSIGNMENT", recordId:ended.updated.id, oldValue:{status:ended.oldStatus}, newValue:ended.updated, reason:input.reason });
   return res.json(ended.updated);
 });
-\n

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
@@ -39,23 +40,83 @@ fuelRouter.post("/",requirePermission(PERMISSIONS.FUEL_CREATE),async(req,res)=>{
 fuelRouter.post("/:id/decision",requireFreshMfa,requirePermission(PERMISSIONS.FUEL_APPROVE),async(req,res)=>{
   const id=routeId(req.params.id);if(!id)return res.status(400).json({error:"Invalid fuel request id."});
   const input=z.object({decision:z.enum(["APPROVED","REJECTED"]),comments:z.string().max(1500).optional()}).parse(req.body);
-  const row=await prisma.fuelTransaction.findFirst({where:{id,organizationId:req.auth!.organizationId}});if(!row)return res.status(404).json({error:"Fuel request not found."});if(row.status!=="REQUESTED")return res.status(409).json({error:"Only pending fuel requests can be approved or rejected."});
-  assertDifferentApprover(row.requestedByUserId,req.auth!.userId);
-  let updated;
-  if(input.decision==="APPROVED"){
-    updated=await prisma.fuelTransaction.update({where:{id:row.id},data:{status:"APPROVED",approvedByUserId:req.auth!.userId,approvedAt:new Date(),rejectionReason:null}});
-  }else{
-    const rejectionReason=input.comments;if(!rejectionReason)return res.status(400).json({error:"A rejection reason is required."});
-    updated=await prisma.fuelTransaction.update({where:{id:row.id},data:{status:"REJECTED",approvedByUserId:req.auth!.userId,approvedAt:new Date(),rejectionReason}});
-  }
-  await audit(req,{action:input.decision==="APPROVED"?"APPROVE":"REJECT",recordType:"FUEL_TRANSACTION",recordId:row.id,oldValue:{status:row.status},newValue:{status:updated.status},...(input.comments?{reason:input.comments}:{})});return res.json(updated);
+
+  const result=await prisma.$transaction(async tx=>{
+    const rows=await tx.$queryRaw<Array<{id:string;status:string;requestedByUserId:string}>>(Prisma.sql`
+      SELECT "id","status","requestedByUserId"
+      FROM "FuelTransaction"
+      WHERE "id"=${id}::uuid
+        AND "organizationId"=${req.auth!.organizationId}::uuid
+      FOR UPDATE
+    `);
+    const row=rows[0];
+    if(!row)return {kind:"not_found" as const};
+    if(row.status!=="REQUESTED")return {kind:"invalid_state" as const};
+    if(row.requestedByUserId===req.auth!.userId)return {kind:"self_approval" as const};
+    if(input.decision==="REJECTED"&&!input.comments)return {kind:"missing_reason" as const};
+
+    const updated=await tx.fuelTransaction.update({
+      where:{id:row.id},
+      data:input.decision==="APPROVED"
+        ? {status:"APPROVED",approvedByUserId:req.auth!.userId,approvedAt:new Date(),rejectionReason:null}
+        : {status:"REJECTED",approvedByUserId:req.auth!.userId,approvedAt:new Date(),rejectionReason:input.comments!}
+    });
+    return {kind:"updated" as const,updated,oldStatus:row.status};
+  });
+
+  if(result.kind==="not_found")return res.status(404).json({error:"Fuel request not found."});
+  if(result.kind==="invalid_state")return res.status(409).json({error:"Only pending fuel requests can be approved or rejected."});
+  if(result.kind==="self_approval")return res.status(403).json({error:"A user cannot approve their own fuel request."});
+  if(result.kind==="missing_reason")return res.status(400).json({error:"A rejection reason is required."});
+
+  await audit(req,{action:input.decision==="APPROVED"?"APPROVE":"REJECT",recordType:"FUEL_TRANSACTION",recordId:result.updated.id,oldValue:{status:result.oldStatus},newValue:{status:result.updated.status},...(input.comments?{reason:input.comments}:{})});
+  return res.json(result.updated);
 });
 
 fuelRouter.post("/:id/issue",requireFreshMfa,requirePermission(PERMISSIONS.FUEL_APPROVE),async(req,res)=>{
   const id=routeId(req.params.id);if(!id)return res.status(400).json({error:"Invalid fuel request id."});
   const input=z.object({issuedLitres:z.number().positive().max(5000),unitPrice:z.number().min(0),station:z.string().min(2).max(200),receiptNumber:z.string().max(150).optional(),odometerKm:z.number().int().min(0).optional(),notes:z.string().max(2000).optional()}).parse(req.body);
-  const row=await prisma.fuelTransaction.findFirst({where:{id,organizationId:req.auth!.organizationId},include:{vehicle:true}});if(!row)return res.status(404).json({error:"Fuel request not found."});if(row.status!=="APPROVED")return res.status(409).json({error:"Fuel must be approved before issue."});
-  const issueOdometer=input.odometerKm??row.odometerKm;validateOdometer(row.vehicle.currentOdometerKm,issueOdometer);const total=input.issuedLitres*input.unitPrice;
-  const updated=await prisma.$transaction(async tx=>{await tx.vehicle.update({where:{id:row.vehicleId},data:{currentOdometerKm:issueOdometer}});return tx.fuelTransaction.update({where:{id:row.id},data:{status:"ISSUED",issuedLitres:input.issuedLitres,unitPrice:input.unitPrice,totalCost:total,station:input.station,receiptNumber:input.receiptNumber??null,odometerKm:issueOdometer,issuedAt:new Date(),notes:input.notes??row.notes}});});
-  await audit(req,{action:"ISSUE",recordType:"FUEL_TRANSACTION",recordId:row.id,oldValue:{status:row.status},newValue:{status:updated.status,issuedLitres:updated.issuedLitres,totalCost:updated.totalCost}});return res.json(updated);
+
+  const result=await prisma.$transaction(async tx=>{
+    const fuelRows=await tx.$queryRaw<Array<{id:string;status:string;vehicleId:string;requestedLitres:Prisma.Decimal;odometerKm:number;notes:string|null}>>(Prisma.sql`
+      SELECT "id","status","vehicleId","requestedLitres","odometerKm","notes"
+      FROM "FuelTransaction"
+      WHERE "id"=${id}::uuid
+        AND "organizationId"=${req.auth!.organizationId}::uuid
+      FOR UPDATE
+    `);
+    const row=fuelRows[0];
+    if(!row)return {kind:"not_found" as const};
+    if(row.status!=="APPROVED")return {kind:"invalid_state" as const};
+
+    const vehicleRows=await tx.$queryRaw<Array<{id:string;status:string;archivedAt:Date|null;currentOdometerKm:number}>>(Prisma.sql`
+      SELECT "id","status","archivedAt","currentOdometerKm"
+      FROM "Vehicle"
+      WHERE "id"=${row.vehicleId}::uuid
+        AND "organizationId"=${req.auth!.organizationId}::uuid
+      FOR UPDATE
+    `);
+    const vehicle=vehicleRows[0];
+    if(!vehicle||vehicle.archivedAt)return {kind:"vehicle_not_found" as const};
+    if(Number(input.issuedLitres)>Number(row.requestedLitres))return {kind:"over_issue" as const,requestedLitres:Number(row.requestedLitres)};
+    const issueOdometer=input.odometerKm??row.odometerKm;
+    validateOdometer(vehicle.currentOdometerKm,issueOdometer);
+    const total=input.issuedLitres*input.unitPrice;
+
+    await tx.vehicle.update({where:{id:vehicle.id},data:{currentOdometerKm:issueOdometer}});
+    const updated=await tx.fuelTransaction.update({
+      where:{id:row.id},
+      data:{status:"ISSUED",issuedLitres:input.issuedLitres,unitPrice:input.unitPrice,totalCost:total,station:input.station,receiptNumber:input.receiptNumber??null,odometerKm:issueOdometer,issuedAt:new Date(),notes:input.notes??row.notes}
+    });
+    return {kind:"updated" as const,updated,oldStatus:row.status};
+  });
+
+  if(result.kind==="not_found")return res.status(404).json({error:"Fuel request not found."});
+  if(result.kind==="invalid_state")return res.status(409).json({error:"Fuel must be approved before issue."});
+  if(result.kind==="vehicle_not_found")return res.status(404).json({error:"Fuel vehicle not found."});
+  if(result.kind==="over_issue")return res.status(409).json({error:`Issued litres cannot exceed the approved request of ${result.requestedLitres} litres.`});
+
+  await audit(req,{action:"ISSUE",recordType:"FUEL_TRANSACTION",recordId:result.updated.id,oldValue:{status:result.oldStatus},newValue:{status:result.updated.status,issuedLitres:result.updated.issuedLitres,totalCost:result.updated.totalCost}});
+  return res.json(result.updated);
 });
+

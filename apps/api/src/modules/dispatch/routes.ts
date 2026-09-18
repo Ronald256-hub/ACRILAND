@@ -234,6 +234,6 @@ dispatchRouter.post("/:id/cancel", requireFreshMfa, requirePermission(PERMISSION
   });
   if(result.kind==="not_found")return res.status(404).json({error:"Dispatch plan not found."});
   if(result.kind==="invalid_state")return res.status(409).json({error:"An active or completed dispatch cannot be cancelled here."});
-  await audit(req,{action:"CANCEL",recordType:"DISPATCH_PLAN",recordId:id,oldValue:{status:result.oldStatus},newValue:result.updated.status},reason:input.reason);
+  await audit(req,{action:"CANCEL",recordType:"DISPATCH_PLAN",recordId:id,oldValue:{status:result.oldStatus},newValue:{status:result.updated.status},reason:input.reason});
   return res.json(result.updated);
 });

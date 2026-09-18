@@ -80,13 +80,13 @@ authRouter.post("/login", loginLimiter, async (req, res) => {
     });
     await tx.user.update({ where: { id: user.id }, data: { failedLoginCount: 0, lockedUntil: null, status: "ACTIVE", lastLoginAt: new Date() } });
     await tx.loginEvent.create({ data: { ...baseEvent, success: true, reason: "LOGIN_SUCCESS" } });
-    return { kind:"success" as const, session, mustChangePassword:user.mustChangePassword, userId:user.id, organizationId:user.organizationId };
+    return { kind:"success" as const, session, refresh, mustChangePassword:user.mustChangePassword, userId:user.id, organizationId:user.organizationId };
   });
 
   if (result.kind === "invalid") return res.status(401).json({ error: "Invalid organization, email or password." });
   if (result.kind === "locked") return res.status(423).json({ error: "Account is temporarily locked due to repeated failed sign-in attempts." });
 
-  res.cookie("acr_refresh", result.session.refreshTokenHash.length ? result.session.refreshTokenHash : "", { ...cookieOptions, expires: new Date(Date.now() - 1000) });
+  res.cookie("acr_refresh", result.refresh, { ...cookieOptions, expires: result.session.expiresAt });
   return res.json({ accessToken: signAccessToken({ sub: result.userId, organizationId: result.organizationId, sessionId: result.session.id }), mustChangePassword: result.mustChangePassword });
 });
 

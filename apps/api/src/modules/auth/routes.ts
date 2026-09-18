@@ -17,35 +17,77 @@ const loginSchema = z.object({ organizationSlug: z.string().min(2).max(80), emai
 
 authRouter.post("/login", loginLimiter, async (req, res) => {
   const input = loginSchema.parse(req.body);
+  const email = input.email.toLowerCase();
   const org = await prisma.organization.findUnique({ where: { slug: input.organizationSlug.toLowerCase() } });
-  const user = org ? await prisma.user.findUnique({ where: { organizationId_email: { organizationId: org.id, email: input.email.toLowerCase() } } }) : null;
-  const baseEvent = { organizationId: org?.id ?? null, userId: user?.id ?? null, email: input.email.toLowerCase(), ipAddress: req.ip ?? null, userAgent: req.get("user-agent") ?? null };
-  if (!org || !org.isActive || !user || user.archivedAt || (user.status !== "ACTIVE" && !(user.status === "LOCKED" && (!user.lockedUntil || user.lockedUntil <= new Date())))) {
-    await prisma.loginEvent.create({ data: { ...baseEvent, success: false, reason: "INVALID_CREDENTIALS" } });
+
+  if (!org || !org.isActive) {
+    await prisma.loginEvent.create({
+      data: { organizationId: org?.id ?? null, userId: null, email, ipAddress: req.ip ?? null, userAgent: req.get("user-agent") ?? null, success: false, reason: "INVALID_CREDENTIALS" }
+    });
     return res.status(401).json({ error: "Invalid organization, email or password." });
   }
-  if (user.lockedUntil && user.lockedUntil > new Date()) {
-    await prisma.loginEvent.create({ data: { ...baseEvent, success: false, reason: "ACCOUNT_LOCKED" } });
-    return res.status(423).json({ error: "Account is temporarily locked due to repeated failed sign-in attempts." });
-  }
-  const valid = await verifyPassword(input.password, user.passwordHash);
-  if (!valid) {
-    const failed = Math.min(user.failedLoginCount + 1, 5);
-    await prisma.user.update({ where: { id: user.id }, data: { failedLoginCount: failed } });
-    await prisma.loginEvent.create({ data: { ...baseEvent, success: false, reason: failed >= 5 ? "BAD_PASSWORD_RATE_LIMITED" : "BAD_PASSWORD" } });
-    return res.status(401).json({ error: "Invalid organization, email or password." });
-  }
-  const refresh = newOpaqueToken();
-  const refreshHash = hashOpaqueToken(refresh);
-  const expiresAt = new Date(Date.now() + env.REFRESH_TOKEN_TTL_DAYS * 86_400_000);
-  const session = await prisma.$transaction(async (tx) => {
-    const s = await tx.session.create({ data: { userId: user.id, refreshTokenHash: refreshHash, expiresAt, ipAddress: req.ip ?? null, userAgent: req.get("user-agent") ?? null } });
+
+  const result = await prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<Array<{
+      id:string;
+      organizationId:string;
+      email:string;
+      passwordHash:string;
+      status:string;
+      lockedUntil:Date | null;
+      archivedAt:Date | null;
+      mustChangePassword:boolean;
+    }>>(Prisma.sql`
+      SELECT "id","organizationId","email","passwordHash","status","lockedUntil","archivedAt","mustChangePassword"
+      FROM "User"
+      WHERE "organizationId"=${org.id}::uuid
+        AND "email"=${email}
+      FOR UPDATE
+    `);
+
+    const user = rows[0];
+    const baseEvent = {
+      organizationId: org.id,
+      userId: user?.id ?? null,
+      email,
+      ipAddress: req.ip ?? null,
+      userAgent: req.get("user-agent") ?? null
+    };
+
+    if (!user || user.archivedAt || (user.status !== "ACTIVE" && !(user.status === "LOCKED" && (!user.lockedUntil || user.lockedUntil <= new Date())))) {
+      await tx.loginEvent.create({ data: { ...baseEvent, success: false, reason: "INVALID_CREDENTIALS" } });
+      return { kind:"invalid" as const };
+    }
+
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      await tx.loginEvent.create({ data: { ...baseEvent, success: false, reason: "ACCOUNT_LOCKED" } });
+      return { kind:"locked" as const };
+    }
+
+    const valid = await verifyPassword(input.password, user.passwordHash);
+    if (!valid) {
+      const failed = Math.min((await tx.user.findUniqueOrThrow({ where:{ id:user.id }, select:{failedLoginCount:true} })).failedLoginCount + 1, 5);
+      await tx.user.update({ where: { id: user.id }, data: { failedLoginCount: failed } });
+      await tx.loginEvent.create({ data: { ...baseEvent, success: false, reason: failed >= 5 ? "BAD_PASSWORD_RATE_LIMITED" : "BAD_PASSWORD" } });
+      return { kind:"invalid" as const };
+    }
+
+    const refresh = newOpaqueToken();
+    const refreshHash = hashOpaqueToken(refresh);
+    const expiresAt = new Date(Date.now() + env.REFRESH_TOKEN_TTL_DAYS * 86_400_000);
+    const session = await tx.session.create({
+      data: { userId: user.id, refreshTokenHash: refreshHash, expiresAt, ipAddress: req.ip ?? null, userAgent: req.get("user-agent") ?? null }
+    });
     await tx.user.update({ where: { id: user.id }, data: { failedLoginCount: 0, lockedUntil: null, status: "ACTIVE", lastLoginAt: new Date() } });
     await tx.loginEvent.create({ data: { ...baseEvent, success: true, reason: "LOGIN_SUCCESS" } });
-    return s;
+    return { kind:"success" as const, session, mustChangePassword:user.mustChangePassword, userId:user.id, organizationId:user.organizationId };
   });
-  res.cookie("acr_refresh", refresh, { ...cookieOptions, expires: expiresAt });
-  return res.json({ accessToken: signAccessToken({ sub: user.id, organizationId: user.organizationId, sessionId: session.id }), mustChangePassword: user.mustChangePassword });
+
+  if (result.kind === "invalid") return res.status(401).json({ error: "Invalid organization, email or password." });
+  if (result.kind === "locked") return res.status(423).json({ error: "Account is temporarily locked due to repeated failed sign-in attempts." });
+
+  res.cookie("acr_refresh", result.session.refreshTokenHash.length ? result.session.refreshTokenHash : "", { ...cookieOptions, expires: new Date(Date.now() - 1000) });
+  return res.json({ accessToken: signAccessToken({ sub: result.userId, organizationId: result.organizationId, sessionId: result.session.id }), mustChangePassword: result.mustChangePassword });
 });
 
 authRouter.post("/refresh", async (req, res) => {
